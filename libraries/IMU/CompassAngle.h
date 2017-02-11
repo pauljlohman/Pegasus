@@ -1,6 +1,6 @@
 /*
     MPU9255 - AK8963C - COMPASS    
-    Full scale measurement range is ±4800µT
+    Full scale measurement range is Â±4800ÂµT
     Y axis runs front to back
     X axis runs left to right
     z axis runs bottom to top 

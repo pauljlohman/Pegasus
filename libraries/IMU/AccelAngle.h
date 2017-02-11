@@ -8,7 +8,7 @@
     3       | +/- 16g          |  2048 LSB/g
 
     Sensitivity Change vs. Temperature
-    -40°C to +85°C AFS_SEL:0  is ±0.026 %/°C
+    -40Â°C to +85Â°C AFS_SEL:0  is Â±0.026 %/Â°C
 
     Zero-G Level Change vs. Temperature
 
@@ -23,7 +23,7 @@
         positive value moves the nose right
 
     MPU9255 - AK8963C - COMPASS    
-    Full scale measurement range is ±4800µT
+    Full scale measurement range is Â±4800ÂµT
     Y axis runs front to back
     X axis runs left to right
     z axis runs bottom to top 

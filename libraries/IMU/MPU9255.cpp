@@ -1936,9 +1936,9 @@ void MPU9255::magInitialize(){
 
 bool MPU9255::getMagReading(int16_t* x, int16_t* y, int16_t* z){
     // Check Data Ready or not by polling ST1 register
-    // DRDY bit [0]: Data Ready or not. Not when “0”, Data Ready when “1”.
+    // DRDY bit [0]: Data Ready or not. Not when Â“0Â”, Data Ready when Â“1Â”.
     // DOR bit [1]: if any data has been skipped before the current data or not. 
-    // There are no skipped data when “0”, there are skipped data when “1”.
+    // There are no skipped data when Â“0Â”, there are skipped data when Â“1Â”.
     I2Cdev::readByte(AK8963C_ADDRESS, AK8963C_ST1, buffer);
     //Serial.printf("AK8963C_ST1 %X\n", buffer[0]);
     if(!bitRead(buffer[0],0)){
@@ -1948,7 +1948,7 @@ bool MPU9255::getMagReading(int16_t* x, int16_t* y, int16_t* z){
     // Read measurement data
     // When any of measurement data register (HXL ~ HZH) or ST2 register is read, 
     // AK8963 judges that data reading is started. When data reading is started, 
-    // DRDY bit and DOR bit turns to “0”.
+    // DRDY bit and DOR bit turns to Â“0Â”.
     I2Cdev::readBytes(AK8963C_ADDRESS, AK8963C_HXL, 6, buffer);
     //Serial.printf("xL 0x%x xH 0x%x, yL 0x%x yH 0x%x, zL 0x%x zH 0x%x\n",buffer[0],buffer[1],buffer[2],buffer[3],buffer[4],buffer[5]);
     *x = (((int16_t)buffer[1]) << 8) | buffer[0];
@@ -1957,7 +1957,7 @@ bool MPU9255::getMagReading(int16_t* x, int16_t* y, int16_t* z){
     
     // Read ST2 register (required)
     //  HOFL: Shows if magnetic sensor is overflown or not. 
-    //  “0” means not overflown, “1” means overflown.
+    //  Â“0Â” means not overflown, Â“1Â” means overflown.
     // When ST2 register is read, AK8963 judges that data reading is finished. 
     // Stored measurement data is protected during data reading and data is not updated. 
     // By reading ST2 register, this protection is released.

@@ -43,15 +43,7 @@ MPU9255 imu;
 GyroAngle gyro;
 AccelAngle accel;
 // raw sensor readings
-short ax;
-short ay;
-short az;
-short gx;
-short gy;
-short gz;
-short mx;
-short my;
-short mz;
+short ax, ay, az, gx, gy, gz, mx, my, mz;
 
 // Logging
 Pegasus_Log logger;
@@ -69,31 +61,24 @@ pPID PID_yaw;
 pPID PID_pitch;
 pPID PID_roll;
 // PID output
-long op_roll;
-long op_pitch;
-long op_yaw;
-long op_throttle;
+long op_roll, op_pitch, op_yaw, op_throttle;
 // motor power output
-long power_FL;
-long power_FR;
-long power_BR;
-long power_BL;
+long power_FL, power_FR, power_BR, power_BL;
 
 // throttle-thrust correction
 CurveRemap tt;
-
 #define FLTTLENGTH 2
 unsigned short FL_tt_x[FLTTLENGTH] = {0,65535};
-unsigned short FL_tt_y[FLTTLENGTH] = {3195,65535};
+unsigned short FL_tt_y[FLTTLENGTH] = {0,65535};
 #define FRTTLENGTH 2
 unsigned short FR_tt_x[FRTTLENGTH] = {0,65535};
-unsigned short FR_tt_y[FRTTLENGTH] = {3195,65535};
+unsigned short FR_tt_y[FRTTLENGTH] = {0,65535};
 #define BRTTLENGTH 2
 unsigned short BR_tt_x[BRTTLENGTH] = {0,65535};
-unsigned short BR_tt_y[BRTTLENGTH] = {3195,65535};
+unsigned short BR_tt_y[BRTTLENGTH] = {0,65535};
 #define BLTTLENGTH 2
 unsigned short BL_tt_x[BLTTLENGTH] = {0,65535};
-unsigned short BL_tt_y[BLTTLENGTH] = {3195,65535};
+unsigned short BL_tt_y[BLTTLENGTH] = {0,65535};
 /*
 #define FLTTLENGTH 14
 unsigned short FL_tt_x[FLTTLENGTH] = {0,1843,25384,25465,26711,32691,37411,44993,45244,47404,53389,60687,62966,65535};

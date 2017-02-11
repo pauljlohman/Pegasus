@@ -1,4 +1,4 @@
-/* For Silicon Labs’ Si4455 Transceiver rev B1A
+/* For Silicon Labsâ€™ Si4455 Transceiver rev B1A
    Developed on RFSolutions ZETA-915, Teensy LC, Arduino IDE
    
    fixed packet length, can be configured using WDS

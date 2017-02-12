@@ -67,18 +67,19 @@ long power_FL, power_FR, power_BR, power_BL;
 
 // throttle-thrust correction
 CurveRemap tt;
+
 #define FLTTLENGTH 2
 unsigned short FL_tt_x[FLTTLENGTH] = {0,65535};
-unsigned short FL_tt_y[FLTTLENGTH] = {0,65535};
+unsigned short FL_tt_y[FLTTLENGTH] = {3195,65535};
 #define FRTTLENGTH 2
 unsigned short FR_tt_x[FRTTLENGTH] = {0,65535};
-unsigned short FR_tt_y[FRTTLENGTH] = {0,65535};
+unsigned short FR_tt_y[FRTTLENGTH] = {3195,65535};
 #define BRTTLENGTH 2
 unsigned short BR_tt_x[BRTTLENGTH] = {0,65535};
-unsigned short BR_tt_y[BRTTLENGTH] = {0,65535};
+unsigned short BR_tt_y[BRTTLENGTH] = {3195,65535};
 #define BLTTLENGTH 2
 unsigned short BL_tt_x[BLTTLENGTH] = {0,65535};
-unsigned short BL_tt_y[BLTTLENGTH] = {0,65535};
+unsigned short BL_tt_y[BLTTLENGTH] = {3195,65535};
 /*
 #define FLTTLENGTH 14
 unsigned short FL_tt_x[FLTTLENGTH] = {0,1843,25384,25465,26711,32691,37411,44993,45244,47404,53389,60687,62966,65535};
@@ -94,13 +95,12 @@ unsigned short BL_tt_x[BLTTLENGTH] = {0,2558,25426,26377,26494,28842,41066,47144
 unsigned short BL_tt_y[BLTTLENGTH] = {3195,3894,24949,26229,26919,28269,40086,44674,45374,46146,55350};
 */
 // timers
-//primes 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193, 197, 199
 unsigned long elapsed_ms;
 
 unsigned short longPeriod = 500;
 unsigned long lastLongTime = millis();
 
-byte loggerPeriod = 37;
+byte loggerPeriod = 40;
 unsigned long lastloggerTime = millis();
 
 byte midPeriod = 21;
@@ -246,21 +246,24 @@ void loop() {
     //print("Compass "); print(lastShortTimeMS); print(" ");print(accel.mx); print(" "); print(accel.y); print(" "); print(accel.z); print("\n");
     gyro.correctXY(accel.x, accel.y);
     //if(freshMag){ gyro.correctZ(accel.z); }
-    print("IMU "); print(lastShortTimeMS); print(" "); print(gyro.posX); print(" "); print(gyro.posY); print(" "); print(gyro.posZ); print("\n");
+    //print("IMU "); print(lastShortTimeMS); print(" "); print(gyro.posX); print(" "); print(gyro.posY); print(" "); print(gyro.posZ); print("\n");
     updateMotor();
   }
 
-  /*elapsed_ms = millis() - lastloggerTime;
+  elapsed_ms = millis() - lastloggerTime;
   if (elapsed_ms >= loggerPeriod) {
     lastloggerTime = millis();
-    if(ctrl.live){
+    /*if(ctrl.live){
         logger.append_IMU(lastloggerTime, gyro.posX, gyro.posY, gyro.posZ);
         logger.append_PID(lastloggerTime, op_roll, op_pitch, op_yaw);
-        //logger.append_MP(lastloggerTime, power_FL, power_FR, power_BR, power_BL);
-        //logger.append_RX(lastloggerTime, ctrl.rollf, ctrl.pitchf, ctrl.yawf, ctrl.throttle);
-        logger.writeOnFull();
-    }
-  }*/
+        logger.append_MP(lastloggerTime, power_FL, power_FR, power_BR, power_BL);
+        logger.append_RX(lastloggerTime, ctrl.rollf, ctrl.pitchf, ctrl.yawf, ctrl.throttle);
+        logger.writeOnFull();        
+    }*/
+    print("IMU "); print(lastShortTimeMS); print(" "); print(gyro.posX); print(" "); print(gyro.posY); print(" "); print(gyro.posZ); print("\n");
+    print("PID "); print(lastShortTimeMS); print(" "); print(op_roll); print(" "); print(op_pitch); print(" "); print(op_yaw); print("\n");
+    print("MP "); print(lastShortTimeMS); print(" "); print(power_FL); print(" "); print(power_FR); print(" "); print(power_BR); print(" "); print(power_BL); print("\n");
+  }
 }
 
 bool checkRX() {
@@ -313,81 +316,73 @@ bool checkRX() {
 
 void updateMotor() {
   // update PID & scale to power
-  //print("Roll "); print(ctrl.rollf); print(" - ");
+  //print("PID_R "); print(lastShortTimeMS); print(" "); print(ctrl.rollf); print(" ");
   switch (ctrl.navRotModeRoll) {
     case ctrl.FLY_STAB:
       op_roll = long(PID_roll.compute( ctrl.rollf, gyro.posX));
-      //print(gyro.posX); print("\n");
+      //print(gyro.posX); print(" ");
       break;
     case ctrl.FLY_ACRO:
       op_roll = long(PID_roll.compute( ctrl.rollf, gyro.rateX));
-      //print(gyro.rateX); print("\n");
+      //print(gyro.rateX); print(" ");
       break;
   }
-  //print("\t e:"); print(PID_roll.getError()); print(" * kP:"); print(ctrl.Kp_roll); print(" = "); print(ctrl.Kp_roll * PID_roll.getError()); print("\n")
-  //print("\t i:"); print(PID_roll.getIntegral()); print(" * kI:"); print(ctrl.Ki_roll); print(" = "); print(ctrl.Ki_roll * PID_roll.getIntegral()); print("\n")
-  //print("\t d:"); print(PID_roll.getDerivative()); print(" * kD:"); print(ctrl.Kd_roll); print(" = "); print(ctrl.Kd_roll * PID_roll.getDerivative()); print("\n")
-  //print("\t output:"); print(op_roll); print("\n");
+  //print(PID_roll.getError()); print(" "); print(ctrl.Kp_roll); print(" "); print(ctrl.Kp_roll * PID_roll.getError()); print(" ")
+  //print(PID_roll.getIntegral()); print(" "); print(ctrl.Ki_roll); print(" "); print(ctrl.Ki_roll * PID_roll.getIntegral()); print(" ")
+  //print(PID_roll.getDerivative()); print(" "); print(ctrl.Kd_roll); print(" "); print(ctrl.Kd_roll * PID_roll.getDerivative()); print(" ")
+  //print(op_roll); print("\n");
 
-  //print("Pitch "); print(ctrl.pitchf); print(" - ");
+  //print("PID_P "); print(lastShortTimeMS); print(" "); print(ctrl.pitchf); print(" ");
   switch (ctrl.navRotModePitch) {
     case ctrl.FLY_STAB:
       op_pitch = long(PID_pitch.compute( ctrl.pitchf, gyro.posY));
-      //print(gyro.posY); print("\n");
+      //print(gyro.posY); print(" ");
       break;
     case ctrl.FLY_ACRO:
       op_pitch = long(PID_pitch.compute( ctrl.pitchf, gyro.rateY));
-      //print(gyro.rateY); print("\n");
+      //print(gyro.rateY); print(" ");
       break;
   }
-  //print("\t e:"); print(PID_pitch.getError()); print(" * kP:"); print(ctrl.Kp_pitch); print(" = "); print(ctrl.Kp_pitch * PID_pitch.getError()); print("\n")
-  //print("\t i:"); print(PID_pitch.getIntegral()); print(" * kI:"); print(ctrl.Ki_pitch); print(" = "); print(ctrl.Ki_pitch * PID_pitch.getIntegral()); print("\n")
-  //print("\t d:"); print(PID_pitch.getDerivative()); print(" * kD:"); print(ctrl.Kd_pitch); print(" = "); print(ctrl.Kd_pitch * PID_pitch.getDerivative()); print("\n")
-  //print("\t output:"); print(op_pitch); print("\n");
+  //print(PID_pitch.getError()); print(" "); print(ctrl.Kp_pitch); print(" "); print(ctrl.Kp_pitch * PID_pitch.getError()); print(" ")
+  //print(PID_pitch.getIntegral()); print(" "); print(ctrl.Ki_pitch); print(" "); print(ctrl.Ki_pitch * PID_pitch.getIntegral()); print(" ")
+  //print(PID_pitch.getDerivative()); print(" "); print(ctrl.Kd_pitch); print(" "); print(ctrl.Kd_pitch * PID_pitch.getDerivative()); print(" ")
+  //print(op_pitch); print("\n");
 
-  //print("Yaw "); print(ctrl.yawf); print(" - ");
+  //print("PID_Y "); print(lastShortTimeMS); print(" "); print(ctrl.yawf); print(" ");
   switch (ctrl.navRotModeYaw) {
     case ctrl.FLY_STAB: // use angle position for "stable" mode
       op_yaw = long(PID_yaw.compute( ctrl.yawf, gyro.posZ));
-      //print(gyro.posZ); print("\n");
+      //print(gyro.posZ); print(" ");
       break;
     case ctrl.FLY_ACRO: // use angle rate for "acrobatic" mode
       op_yaw = long(PID_yaw.compute( ctrl.yawf, gyro.rateZ));
-      //print(gyro.rateZ); print("\n");
+      //print(gyro.rateZ); print(" ");
       break;
   }
-  //print("\t e:"); print(PID_yaw.getError()); print(" * kP:"); print(ctrl.Kp_yaw); print(" = "); print(ctrl.Kp_yaw * PID_yaw.getError()); print("\n")
-  //print("\t i:"); print(PID_yaw.getIntegral()); print(" * kI:"); print(ctrl.Ki_yaw); print(" = "); print(ctrl.Ki_yaw * PID_yaw.getIntegral()); print("\n")
-  //print("\t d:"); print(PID_yaw.getDerivative()); print(" * kD:"); print(ctrl.Kd_yaw); print(" = "); print(ctrl.Kd_yaw * PID_yaw.getDerivative()); print("\n")
-  //print("\t output:"); print(op_yaw); print("\n");
+  //print(PID_yaw.getError()); print(" "); print(ctrl.Kp_yaw); print(" "); print(ctrl.Kp_yaw * PID_yaw.getError()); print(" ")
+  //print(PID_yaw.getIntegral()); print(" "); print(ctrl.Ki_yaw); print(" "); print(ctrl.Ki_yaw * PID_yaw.getIntegral()); print(" ")
+  //print(PID_yaw.getDerivative()); print(" "); print(ctrl.Kd_yaw); print(" "); print(ctrl.Kd_yaw * PID_yaw.getDerivative()); print(" ")
+  //print(op_yaw); print("\n");
 
   op_throttle = ctrl.throttle;
-
+  
   //    roll
   // fl-----fr
   // |  yaw  | pitch
   // bl-----br
-  power_FL = op_throttle - op_pitch + op_roll - op_yaw;
-  power_FR = op_throttle - op_pitch - op_roll + op_yaw;
-  power_BR = op_throttle + op_pitch - op_roll - op_yaw;
-  power_BL = op_throttle + op_pitch + op_roll + op_yaw;
-  power_FL = constrain(power_FL, 0, throttleMax);
-  power_FR = constrain(power_FR, 0, throttleMax);
-  power_BR = constrain(power_BR, 0, throttleMax);
-  power_BL = constrain(power_BL, 0, throttleMax);
+  power_FL = op_throttle + op_pitch + op_roll - op_yaw;
+  power_FR = op_throttle + op_pitch - op_roll + op_yaw;
+  power_BR = op_throttle - op_pitch - op_roll - op_yaw;
+  power_BL = op_throttle - op_pitch + op_roll + op_yaw;
   /*
   power_FL = tt.interp(power_FL, FL_tt_x, FL_tt_y, FLTTLENGTH);
   power_FR = tt.interp(power_FR, FR_tt_x, FR_tt_y, FRTTLENGTH);
   power_BR = tt.interp(power_BR, BR_tt_x, BR_tt_y, BRTTLENGTH);
   power_BL = tt.interp(power_BL, BL_tt_x, BL_tt_y, BLTTLENGTH);
   */
-  print("MP ");
-  print(lastShortTimeMS); print(" ");
-  print(power_FL); print(" ");
-  print(power_FR); print(" ");
-  print(power_BR); print(" ");
-  print(power_BL); print("\n");
-
+    
+  //print("MP "); print(lastShortTimeMS); print(" "); print(power_FL); print(" "); print(power_FR); print(" "); print(power_BR); print(" "); print(power_BL); print("\n");
+    
   if (ctrl.live) {
     esc.update(motorPin_FL, power_FL);
     esc.update(motorPin_FR, power_FR);

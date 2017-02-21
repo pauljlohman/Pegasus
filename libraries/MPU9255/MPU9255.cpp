@@ -1913,7 +1913,7 @@ void MPU9255::magInitialize(){
     I2Cdev::readByte(devAddr, MPU9255_RA_INT_PIN_CFG, buffer);
     //Serial.printf("INT_PIN_CFG %X\n", buffer[0]);
     I2Cdev::writeByte(devAddr, MPU9255_RA_INT_PIN_CFG, buffer[0]|0x02);
-    delay(10);
+    delay(20);
     /*INT_PIN_CFG 0x37
     bit
     7 ACTL
@@ -1930,25 +1930,47 @@ void MPU9255::magInitialize(){
     //I2Cdev::readByte(AK8963C_ADDRESS, AK8963C_CNTL1, buffer);
     //Serial.printf("MAG_CNTL1 %X\n", buffer[0]);
     //I2Cdev::writeByte(AK8963C_ADDRESS, AK8963C_CNTL1, AK8963C_OPMODE_SINGLE);
-    I2Cdev::writeByte(AK8963C_ADDRESS, AK8963C_CNTL1, AK8963C_BITSET_14|AK8963C_OPMODE_CONT100HZ);
-    delay(10);
+    I2Cdev::writeByte(AK8963C_ADDRESS, AK8963C_CNTL1, AK8963C_BITSET_16|AK8963C_OPMODE_CONT100HZ);
+    delay(20);
 }
-
-bool MPU9255::getMagReading(int16_t* x, int16_t* y, int16_t* z){
+void MPU9255::magSelfTest(int16_t *x, int16_t *y, int16_t *z){
+    // get operation mode to restore when done
+    int8_t control;
+    I2Cdev::readByte(AK8963C_ADDRESS, AK8963C_CNTL1, buffer);
+    control = buffer[0];
+    
+    //set operation mode
+    I2Cdev::writeByte(AK8963C_ADDRESS, AK8963C_CNTL1, AK8963C_OPMODE_PWRDWN);
+    delay(20);
+    I2Cdev::writeByte(AK8963C_ADDRESS, AK8963C_ASTC, 0x40);
+    I2Cdev::writeByte(AK8963C_ADDRESS, AK8963C_CNTL1, AK8963C_BITSET_16|AK8963C_OPMODE_SELFTEST);
+    bool dataReady = false;
+    while(!dataReady){
+        dataReady = getMagReading(x,y,z);
+    }
+    // end self test
+    I2Cdev::writeByte(AK8963C_ADDRESS, AK8963C_ASTC, 0);
+    I2Cdev::writeByte(AK8963C_ADDRESS, AK8963C_CNTL1, AK8963C_OPMODE_PWRDWN);
+    delay(20);
+    //restore previous operation mode
+    I2Cdev::writeByte(AK8963C_ADDRESS, AK8963C_CNTL1, control);
+    delay(20);
+}
+bool MPU9255::getMagReading(int16_t *x, int16_t *y, int16_t *z){
     // Check Data Ready or not by polling ST1 register
-    // DRDY bit [0]: Data Ready or not. Not when 0, Data Ready when 1.
+    // DRDY bit [0]: Data Ready or not. Not when “0”, Data Ready when “1”.
     // DOR bit [1]: if any data has been skipped before the current data or not. 
-    // There are no skipped data when 0, there are skipped data when 1.
+    // There are no skipped data when “0”, there are skipped data when “1”.
     I2Cdev::readByte(AK8963C_ADDRESS, AK8963C_ST1, buffer);
     //Serial.printf("AK8963C_ST1 %X\n", buffer[0]);
-    if(!bitRead(buffer[0],0)){
+    if(!(buffer[0] & 0x01)){
         return false;
     }
     
     // Read measurement data
     // When any of measurement data register (HXL ~ HZH) or ST2 register is read, 
     // AK8963 judges that data reading is started. When data reading is started, 
-    // DRDY bit and DOR bit turns to 0.
+    // DRDY bit and DOR bit turns to “0”.
     I2Cdev::readBytes(AK8963C_ADDRESS, AK8963C_HXL, 6, buffer);
     //Serial.printf("xL 0x%x xH 0x%x, yL 0x%x yH 0x%x, zL 0x%x zH 0x%x\n",buffer[0],buffer[1],buffer[2],buffer[3],buffer[4],buffer[5]);
     *x = (((int16_t)buffer[1]) << 8) | buffer[0];
@@ -1957,7 +1979,7 @@ bool MPU9255::getMagReading(int16_t* x, int16_t* y, int16_t* z){
     
     // Read ST2 register (required)
     //  HOFL: Shows if magnetic sensor is overflown or not. 
-    //  0 means not overflown, 1 means overflown.
+    //  “0” means not overflown, “1” means overflown.
     // When ST2 register is read, AK8963 judges that data reading is finished. 
     // Stored measurement data is protected during data reading and data is not updated. 
     // By reading ST2 register, this protection is released.
@@ -1965,6 +1987,52 @@ bool MPU9255::getMagReading(int16_t* x, int16_t* y, int16_t* z){
     I2Cdev::readByte(AK8963C_ADDRESS, AK8963C_ST2, buffer);
     //Serial.printf("AK8963C_ST2 %X\n", buffer[0]);
     return true;
+}
+// ASA* registers
+void MPU9255::getMagAdjustment(int8_t *x, int8_t *y, int8_t *z) {
+    // page 32
+    // get operation mode to restore when done
+    int8_t control;
+    I2Cdev::readByte(AK8963C_ADDRESS, AK8963C_CNTL1, buffer);
+    control = buffer[0];
+    
+    I2Cdev::writeByte(AK8963C_ADDRESS, AK8963C_CNTL1, AK8963C_OPMODE_PWRDWN);
+    delay(20);
+    // Enter Fuse ROM access mode
+    I2Cdev::writeByte(AK8963C_ADDRESS, AK8963C_CNTL1, AK8963C_OPMODE_FUSEROM);
+    delay(20);
+    I2Cdev::readBytes(AK8963C_ADDRESS, AK8963C_ASAX, 3, buffer);
+    *x = buffer[0];
+    *y = buffer[1];
+    *z = buffer[2];
+    I2Cdev::writeByte(AK8963C_ADDRESS, AK8963C_CNTL1, AK8963C_OPMODE_PWRDWN);
+    delay(20);
+    //restore previous operation mode
+    I2Cdev::writeByte(AK8963C_ADDRESS, AK8963C_CNTL1, control);
+    delay(20);
+}
+void MPU9255::setMagAdjustment(int8_t x, int8_t y, int8_t z) {
+    // docs say this is read only
+    // get operation mode to restore when done
+    int8_t control;
+    I2Cdev::readByte(AK8963C_ADDRESS, AK8963C_CNTL1, buffer);
+    control = buffer[0];
+    
+    I2Cdev::writeByte(AK8963C_ADDRESS, AK8963C_CNTL1, AK8963C_OPMODE_PWRDWN);
+    delay(20);
+    // Enter Fuse ROM access mode
+    I2Cdev::writeByte(AK8963C_ADDRESS, AK8963C_CNTL1, AK8963C_OPMODE_FUSEROM);
+    delay(20);    
+    buffer[0] = x;
+    buffer[1] = y;
+    buffer[2] = z;
+    I2Cdev::writeBytes(AK8963C_ADDRESS, AK8963C_ASAX, 3, buffer);
+    I2Cdev::writeByte(AK8963C_ADDRESS, AK8963C_CNTL1, AK8963C_OPMODE_PWRDWN);
+    delay(20);    
+    
+    //restore previous operation mode
+    I2Cdev::writeByte(AK8963C_ADDRESS, AK8963C_CNTL1, control);
+    delay(20);
 }
 
 

@@ -28,99 +28,89 @@ class GyroAngle{
     float deltaDPU;
     float correctionWeight = 0.1;
     float gyroWeight = 1.0-correctionWeight;
+    // x:57.60, y:35.87, z:29.05 offset value, tested at @ 2000
+    float offsetX, offsetY, offsetZ;
+    // true inverts axis
+    bool invX, invY, invZ;
+    
+    float wrapAngle(float v){
+        if(v > 180.0){
+            return v - 360.0;
+        }
+        if(v < -180.0){
+            return v + 360.0;
+        }
+        return v;
+    };
 
-    public:
-        // angle rate
-        float rateX;
-        float rateY;
-        float rateZ;
-        // accumulated angle
-        float accX;
-        float accY;
-        float accZ;
-        // corrected angle
-        float posX;
-        float posY;
-        float posZ;
-        // x:57.60, y:35.87, z:29.05 offset value, tested at @ 2000
-        float offsetX;
-        float offsetY;
-        float offsetZ;
-        // true inverts axis
-        bool invX;
-        bool invY;
-        bool invZ;
+public:
+    // angle rate
+    float rateX, rateY, rateZ;
+    // accumulated angle
+    //float accX, accY, accZ;
+    // corrected angle
+    float posX, posY, posZ;
 
-        void config(unsigned short FullScaleRangeDPS,
-                    unsigned long deltaTime_UnitsPerSecond,
-                    float correction_weight,
-                    bool ix, bool iy, bool iz
-                    )
-        {
-            dpu = (1.0 / (FullScaleRangeDPS / 32768.0)) * deltaTime_UnitsPerSecond;
-            correctionWeight = constrain(correction_weight, 0.0, 1.0);
-            gyroWeight = 1.0 - correctionWeight;
-            invX = ix;
-            invY = iy;
-            invZ = iz;
-        };
+    void config(unsigned short FullScaleRangeDPS,
+                unsigned long deltaTime_UnitsPerSecond,
+                float correction_weight,
+                bool ix, bool iy, bool iz
+                )
+    {
+        dpu = (1.0 / (FullScaleRangeDPS / 32768.0)) * deltaTime_UnitsPerSecond;
+        correctionWeight = constrain(correction_weight, 0.0, 1.0);
+        gyroWeight = 1.0 - correctionWeight;
+        invX = ix;
+        invY = iy;
+        invZ = iz;
+    };
 
-        void init(float ox, float oy, float oz, float ax, float ay, float az){
-            offsetX = invX ? -ox : ox;
-            offsetY = invY ? -oy : oy;
-            offsetZ = invX ? -oz : oz;
-            posX = ax;
-            posY = ay;
-            posZ = az;
-        };
+    void init(float ox, float oy, float oz, float ax, float ay, float az){
+        offsetX = invX ? -ox : ox;
+        offsetY = invY ? -oy : oy;
+        offsetZ = invX ? -oz : oz;
+        posX = ax;
+        posY = ay;
+        posZ = az;
+    };
 
-        void update(short x, short y, short z, unsigned long deltaTime){
-            x = invX ? -x : x;
-            y = invY ? -y : y;
-            z = invZ ? -z : z;
-            deltaDPU = dpu / float(deltaTime);
-            rateX = (x - offsetX) / deltaDPU;
-            rateY = (y - offsetY) / deltaDPU;
-            rateZ = (z - offsetZ) / deltaDPU;
+    void update(short x, short y, short z, unsigned long deltaTime){
+        x = invX ? -x : x;
+        y = invY ? -y : y;
+        z = invZ ? -z : z;
+        deltaDPU = dpu / float(deltaTime);
+        rateX = (x - offsetX) / deltaDPU;
+        rateY = (y - offsetY) / deltaDPU;
+        rateZ = (z - offsetZ) / deltaDPU;
+        /*
+        accX += rateX;
+        accY += rateY;
+        accZ += rateZ;
+        accX = wrapAngle(accX);
+        accY = wrapAngle(accY);
+        accZ = wrapAngle(accZ);
+        */
+        posX += rateX;
+        posY += rateY;
+        posZ += rateZ;
+        posX = wrapAngle(posX);
+        posY = wrapAngle(posY);
+        posZ = wrapAngle(posZ);
+    };
 
-            accX += rateX;
-            accY += rateY;
-            accZ += rateZ;
-            accX = wrapAngle(accX);
-            accY = wrapAngle(accY);
-            accZ = wrapAngle(accZ);
-
-            posX += rateX;
-            posY += rateY;
-            posZ += rateZ;
-            posX = wrapAngle(posX);
-            posY = wrapAngle(posY);
-            posZ = wrapAngle(posZ);
-        };
-
-        float wrapAngle(float v){
-            if(v > 180.0){
-                return v - 360.0;
-            }
-            if(v < -180.0){
-                return v + 360.0;
-            }
-            return v;
-        };
-
-        void correct(float cx, float cy, float cz){
-            //not used but long reference: http://www.starlino.com/imu_guide.html
-            posX = (posX * gyroWeight) + (cx * correctionWeight);
-            posY = (posY * gyroWeight) + (cy * correctionWeight);
-            posZ = (posZ * gyroWeight) + (cz * correctionWeight);
-        };
-        void correctXY(float cx, float cy){
-            posX = (posX * gyroWeight) + (cx * correctionWeight);
-            posY = (posY * gyroWeight) + (cy * correctionWeight);
-        };
-        void correctZ(float cz){
-            posZ = (posZ * gyroWeight) + (cz * correctionWeight);
-        };
+    void correct(float cx, float cy, float cz){
+        //not used but long reference: http://www.starlino.com/imu_guide.html
+        posX = (posX * gyroWeight) + (cx * correctionWeight);
+        posY = (posY * gyroWeight) + (cy * correctionWeight);
+        posZ = (posZ * gyroWeight) + (cz * correctionWeight);
+    };
+    void correctXY(float cx, float cy){
+        posX = (posX * gyroWeight) + (cx * correctionWeight);
+        posY = (posY * gyroWeight) + (cy * correctionWeight);
+    };
+    void correctZ(float cz){
+        posZ = (posZ * gyroWeight) + (cz * correctionWeight);
+    };
 
 
 };

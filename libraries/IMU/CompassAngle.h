@@ -5,15 +5,7 @@
     X axis runs left to right
     z axis runs bottom to top 
     
-    
-    X (ROLL)
-        longitudinal axis runs from front to back
-        positive value raises the left side and lowers the right
-    Y (PITCH)
-        lateral axis runs left to right
-        positive value raises the nose and lowers the tail
-    Z (YAW)
-        vertical axis runs top to bottom
+    (YAW)
         positive value moves the nose right
 
 */
@@ -25,13 +17,9 @@
 
 class CompassAngle{
     float radToDegree = 180.0 / 3.1415926535897932384626433832795;
-    
-public:
-    float heading;
-    float offset;
-    float upX = 0.0;
-    float upY = 0.0;
-    float upZ = 1.0;
+    float Xoffset, Yoffset, Zoffset;
+    float Xscale, Yscale, Zscale;
+    float yawOffset = 0.0;
     
     void vectorReject(float ax, float ay, float az, float bx, float by, float bz, float &_x, float &_y, float &_z){
         // project vector a onto plane b
@@ -63,24 +51,6 @@ public:
         _y /= m;
         _z /= m;
     };
-    
-    void update(short _x, short _y, short _z){
-        float xf = float(_x);//-ox;
-        float yf = float(_y);//-oy;
-        float zf = float(_z);//-oz;   
-
-        vecNormalize(xf,yf,zf);
-        float rX, rY, rZ;
-        // reject compass vector onto up vector
-        vectorReject(xf, yf, zf, upX, upY, upZ, rX, rY, rZ);
-
-        heading = atan2f(rX, rY) * radToDegree;
-        //heading -= offset;
-        //heading = wrapAngle(heading);
-
-        //heading = atan2f(yf, sqrt(xf*xf + zf*zf)) * radToDegree;
-    };
-    
     float wrapAngle(float v){
         if(v > 180.0){
             return v - 360.0;
@@ -90,6 +60,49 @@ public:
         }
         return v;
     };
+    
+public:
+    float yaw;
+    //float mx, my, mz; //expose for debug purposes
+    //float rx, ry, rz; //expose for debug purposes
+    
+    void config(float xo, float yo, float zo, float xs, float ys, float zs){
+        Xoffset = xo;
+        Yoffset = yo;
+        Zoffset = zo;
+        Xscale = xs;
+        Yscale = ys;
+        Zscale = zs;
+    };
+    void init(float offset){
+        yawOffset = offset;
+    };
+    
+    void update(short _x, short _y, short _z, short ux, short uy, short uz){
+        _x = (_x - Xoffset) * Xscale;
+        _y = (_y - Yoffset) * Yscale;
+        _z = (_z - Zoffset) * Zscale;
+        // transform compass to align with acc on mpu-9255
+        float mx, my, mz;
+        mx = _y*-1;
+        my = _x*-1;
+        mz = _z;        
+        vecNormalize(mx, my, mz);
+        
+        float upX = float(ux);
+        float upY = float(uy);
+        float upZ = float(uz);
+        vecNormalize(upX, upY, upZ);
+
+        // reject compass vector onto up vector plane
+        float rx, ry, rz;
+        vectorReject(mx, my, mz, upX, upY, upZ, rx, ry, rz);
+        yaw = atan2f(rx, ry) * radToDegree;
+        yaw = yaw * -1; //invert output to get clockwise behavior, complies with common flight scheme
+        yaw = wrapAngle(yaw - yawOffset);
+        
+    };
+
 };
 
 

@@ -67,7 +67,7 @@ THE SOFTWARE.
 // Write/Read Reg
 #define AK8963C_CNTL1               0x0A // Control1 - [3:0] Operation mode setting, [4] Output bit setting
 #define AK8963C_CNTL2               0x0B // 
-#define AK8963C_ASTC                0x0C // 
+#define AK8963C_ASTC                0x0C // [6] SELF
 #define AK8963C_TS1                 0x0D // 
 #define AK8963C_TS2                 0x0E // 
 #define AK8963C_I2CDIS              0x0F // 
@@ -80,9 +80,11 @@ THE SOFTWARE.
 #define AK8963C_BITSET_16           0x10 // 16 bit
 #define AK8963C_OPMODE_PWRDWN       0x00 // power down
 #define AK8963C_OPMODE_SINGLE       0x01 // Single measurement mode
-#define AK8963C_OPMODE_CONT8HZ      0x02 // Continuous measurement mode 1 8Hz
-#define AK8963C_OPMODE_CONT100HZ    0x06 // Continuous measurement mode 2 100Hz
- 
+#define AK8963C_OPMODE_CONT8HZ      0x02 // Continuous measurement mode 1 8Hz, 125ms period
+#define AK8963C_OPMODE_CONT100HZ    0x06 // Continuous measurement mode 2 100Hz, 10ms period
+#define AK8963C_OPMODE_SELFTEST     0x08 // Self-test mode
+#define AK8963C_OPMODE_FUSEROM      0x0F
+
 #define MPU9255_ADDRESS_AD0_LOW     0x68 // address pin low (GND), default for InvenSense evaluation board
 #define MPU9255_ADDRESS_AD0_HIGH    0x69 // address pin high (VCC)
 #define MPU9255_DEFAULT_ADDRESS     MPU9255_ADDRESS_AD0_LOW
@@ -634,9 +636,12 @@ class MPU9255 {
         int16_t getRotationZ();
         
         // Magnetometer
-        void magInitialize();
-        bool getMagReading(int16_t* x, int16_t* y, int16_t* z);
-
+        void magInitialize();        
+        void magSelfTest(int16_t *x, int16_t *y, int16_t *z);
+        bool getMagReading(int16_t *x, int16_t *y, int16_t *z);
+        void getMagAdjustment(int8_t *x, int8_t *y, int8_t *z);
+        void setMagAdjustment(int8_t x, int8_t y, int8_t z);
+        
         // EXT_SENS_DATA_* registers
         uint8_t getExternalSensorByte(int position);
         uint16_t getExternalSensorWord(int position);

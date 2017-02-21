@@ -37,23 +37,26 @@
 
 class AccelAngle{
     float radToDegree = 180.0 / 3.1415926535897932384626433832795;
-    // true inverts axis
-    bool invX;
-    bool invY;
-    bool invZ; 
-    
-public:
-    // angular position
-    float x;
-    float y;
-    float z;
-    // gravity total
-    float g = 0;
-    // resting position
-    float ox;
-    float oy;
-    float oz;
+    // invert output angle
+    bool invX, invY, invZ; 
 
+
+
+
+
+
+
+
+
+
+
+
+     // resting position
+    float Xoffset, Yoffset, Zoffset;
+
+
+
+    
     float vecLength(float &_x, float &_y, float &_z){
         return sqrt(_x*_x + _y*_y + _z*_z);
     };
@@ -64,35 +67,45 @@ public:
         _z /= m;
     };
     
+public:
+    // angular position
+    float x, y, z;
+    // gravity total
+    float g = 0;
+    
     void config(bool _x, bool _y, bool _z){
         invX = _x;
         invY = _y;
         invZ = _z;
     };
-    
+
     void setRestingPosition(float _x, float _y, float _z){
-        ox = _x;
-        oy = _y;
-        oz = _z;
+        Xoffset = _x;
+        Yoffset = _y;
+        Zoffset = _z;
+
+
+
     };
     
     void update(short _x, short _y, short _z){
-        float xf = float(_x)-ox;
-        float yf = float(_y)-oy;
-        float zf = float(_z);//-oz;
+        float xf = float(_x)-Xoffset;
+        float yf = float(_y)-Yoffset;
+        float zf = float(_z);//-Zoffset;
         
         // get total gravity and normalize
-        //float g = vecLength(xf,yf,zf);        
+        //float g = vecLength(xf,yf,zf);
         
-        // roll relative to zf
+        // roll relative to z
         x = atan2f(yf, sqrt(xf*xf + zf*zf)) * radToDegree;
 
-        // pitch relative to zf
+        // pitch relative to z
         y = atan2f(-xf, sqrt(yf*yf + zf*zf)) * radToDegree;
 
-        // yaw, need compass for this
-        //http://phucly-blog.blogspot.com/2016/02/arduino-working-with-gy-9255-mpu-9255.html
-        z = 0.0;//atan2f(yf, xf) * radToDegree;
+        // yaw position calculated in compass
+
+
+        z = 0.0;
         
         // attempt to provide range past 90, mostly good till close to 180 in either axis
         if(zf < 0){

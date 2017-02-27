@@ -32,12 +32,39 @@ https://github.com/nzjrs/pid
 
 class pPID{
     float error;
-    float previous_error;
+    float previous_measured_point;
     float integral;
     float derivative;
     float Kp, Ki, Kd;
     float outMin, outMax;
+    float output;
+    
+    float clamp(float v){
+        if(v > outMax){
+            v = outMax;
+        }else if(v < outMin){
+            v = outMin;
+        }
+        return v;
+    };
+    
 public:
+    float compute(float set_point, float measured_point){
+        error = set_point - measured_point;
+        integral += Ki * error;
+        integral = clamp(integral);
+        derivative = measured_point - previous_measured_point;
+        previous_measured_point = measured_point;
+
+        output = Kp * error;
+        output += integral;
+        output -= Kd * derivative;
+        //output = max( min(output, outMax), outMin);
+        output = clamp(output);
+
+        return output;
+    };
+    
     void config(unsigned short sampleSi, float p, float i, float d, float outputMin, float outputMax){
         float samplesPerSec = sampleSi / 1000000.0; // microseconds
         Kp = p;
@@ -45,27 +72,8 @@ public:
         Kd = d / samplesPerSec;
         outMin = outputMin;
         outMax = outputMax;
-        previous_error = 0;
-    };
-    
-    float compute(float set_point, float measured_point){
-        error = set_point - measured_point;
-        integral += error;
-        //integral = max( min(integral, outMax), outMin);
-        integral = (integral < outMax ? integral : outMax); // max range clamp
-        integral = (integral > outMin ? integral : outMin); // min range clamp
-        derivative = error - previous_error;
-        previous_error = error;
-
-        float output;
-        output = Kp * error;
-        output += Ki * integral;
-        output += Kd * derivative;
-        //output = max( min(output, outMax), outMin);
-        output = (output < outMax ? output : outMax); // max range clamp
-        output = (output > outMin ? output : outMin); // min range clamp
-
-        return output;
+        output = clamp(output);
+        integral = clamp(integral);
     };
     
     float getError(){return error;};
@@ -74,5 +82,3 @@ public:
 };
 
 #endif // pPID_H
-
-

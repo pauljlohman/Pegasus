@@ -237,21 +237,23 @@ void loop() {
     lastShortTime = micros();
     lastShortTimeMS = millis();
     imu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
-    //bool updatedMag = imu.getMagReading( &mx, &my, &mz);
+    bool updatedMag = imu.getMagReading( &mx, &my, &mz);
     gyro.update(gx, gy, gz, elapsed_si);
-    //print("Rate "); print(lastShortTimeMS); print(" "); print(gyro.rateX); print(" "); print(gyro.rateY); print(" "); print(gyro.rateZ); print("\n");
-    //print("Gyro "); print(lastShortTimeMS); print(" "); print(gyro.accX); print(" "); print(gyro.accY); print(" "); print(gyro.accZ); print("\n");
+
+
     accel.update(ax, ay, az);
-    //print("Accel "); print(lastShortTimeMS); print(" "); print(accel.x); print(" "); print(accel.y); print(" "); print(accel.z); print("\n");
+
     gyro.correctXY(accel.x, accel.y);
-    /*
+
     if(updatedMag){ 
         compass.update(mx, my, mz, ax, ay, az);
-        //print("Compass "); print(lastShortTimeMS); print(" ");print(compass.mx); print(" "); print(compass.my); print(" "); print(compass.mz); print("\n");
-        gyro.correctZ(compass.yaw); 
-    }
-    */
-    //print("IMU "); print(lastShortTimeMS); print(" "); print(gyro.posX); print(" "); print(gyro.posY); print(" "); print(gyro.posZ); print("\n");
+
+        //gyro.correctZ(compass.yaw); 
+        gyro.correctZ(0.0);
+    }    
+
+
+    
     if (ctrl.live) {
         pid_update();
         motor_update();
@@ -271,6 +273,10 @@ void loop() {
         logger.writeOnFull();        
     }*/
     print("IMU "); print(lastShortTimeMS); print(" "); print(gyro.posX); print(" "); print(gyro.posY); print(" "); print(gyro.posZ); print("\n");
+    print("GRATE "); print(lastShortTimeMS); print(" "); print(gyro.rateX); print(" "); print(gyro.rateY); print(" "); print(gyro.rateZ); print("\n");
+    print("GRSUM "); print(lastShortTimeMS); print(" "); print(gyro.rsumX); print(" "); print(gyro.rsumY); print(" "); print(gyro.rsumZ); print("\n");
+    print("ACC "); print(lastShortTimeMS); print(" "); print(accel.x); print(" "); print(accel.y); print(" "); print(compass.yaw); print("\n");
+    //print("MAG "); print(lastShortTimeMS); print(" ");print(compass.mx); print(" "); print(compass.my); print(" "); print(compass.mz); print("\n");
     print("PID "); print(lastShortTimeMS); print(" "); print(op_roll); print(" "); print(op_pitch); print(" "); print(op_yaw); print("\n");
     print("MP "); print(lastShortTimeMS); print(" "); print(power_FL); print(" "); print(power_FR); print(" "); print(power_BR); print(" "); print(power_BL); print("\n");
   }
@@ -401,9 +407,9 @@ void pid_update() {
 
 void pid_config() {
   // pid.config(float p, float i, float d, float outputMin, float outputMax)
-  PID_yaw.config(shortPeriod, ctrl.Kp_yaw, ctrl.Ki_yaw, ctrl.Kd_yaw, -65535.0, 65535.0);
-  PID_pitch.config(shortPeriod, ctrl.Kp_pitch, ctrl.Ki_pitch, ctrl.Kd_pitch, -65535.0, 65535.0);
-  PID_roll.config(shortPeriod, ctrl.Kp_roll, ctrl.Ki_roll, ctrl.Kd_roll, -65535.0, 65535.0);
+  PID_yaw.config(shortPeriod, ctrl.Kp_yaw, ctrl.Ki_yaw, ctrl.Kd_yaw, 0.0-float(throttleMax), float(throttleMax));
+  PID_pitch.config(shortPeriod, ctrl.Kp_pitch, ctrl.Ki_pitch, ctrl.Kd_pitch, 0.0-float(throttleMax), float(throttleMax));
+  PID_roll.config(shortPeriod, ctrl.Kp_roll, ctrl.Ki_roll, ctrl.Kd_roll, 0.0-float(throttleMax), float(throttleMax));
 }
 
 void motor_update() {  
@@ -545,7 +551,7 @@ void compass_calibrate(){
         Serial.printf("Z min %i max %i = offset %0.6f scale %0.6f\n", Zmin, Zmax, Zoffset, Zscale);
     #endif
   }
-  // use results to set compass.config(Xoffset,Yoffset,Zoffset,Xscale,Yscale,Zscale);
+  compass.config(Xoffset,Yoffset,Zoffset,Xscale,Yscale,Zscale);
   /*
   // alternatively use scale from factory settings, see data sheet
   int8_t rom_adjX, rom_adjY, rom_adjZ;

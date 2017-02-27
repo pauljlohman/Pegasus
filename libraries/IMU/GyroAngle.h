@@ -46,8 +46,8 @@ class GyroAngle{
 public:
     // angle rate
     float rateX, rateY, rateZ;
-    // accumulated angle
-    //float accX, accY, accZ;
+    // angle rate sum
+    float rsumX, rsumY, rsumZ;
     // corrected angle
     float posX, posY, posZ;
 
@@ -68,7 +68,7 @@ public:
     void init(float ox, float oy, float oz, float ax, float ay, float az){
         offsetX = invX ? -ox : ox;
         offsetY = invY ? -oy : oy;
-        offsetZ = invX ? -oz : oz;
+        offsetZ = invZ ? -oz : oz;
         posX = ax;
         posY = ay;
         posZ = az;
@@ -82,14 +82,14 @@ public:
         rateX = (x - offsetX) / deltaDPU;
         rateY = (y - offsetY) / deltaDPU;
         rateZ = (z - offsetZ) / deltaDPU;
-        /*
-        accX += rateX;
-        accY += rateY;
-        accZ += rateZ;
-        accX = wrapAngle(accX);
-        accY = wrapAngle(accY);
-        accZ = wrapAngle(accZ);
-        */
+        // sum angle using rate only
+        rsumX += rateX;
+        rsumY += rateY;
+        rsumZ += rateZ;
+        rsumX = wrapAngle(rsumX);
+        rsumY = wrapAngle(rsumY);
+        rsumZ = wrapAngle(rsumZ);
+        // current angle plus rate change
         posX += rateX;
         posY += rateY;
         posZ += rateZ;
@@ -99,7 +99,6 @@ public:
     };
 
     void correct(float cx, float cy, float cz){
-        //not used but long reference: http://www.starlino.com/imu_guide.html
         posX = (posX * gyroWeight) + (cx * correctionWeight);
         posY = (posY * gyroWeight) + (cy * correctionWeight);
         posZ = (posZ * gyroWeight) + (cz * correctionWeight);

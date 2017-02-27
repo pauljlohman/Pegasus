@@ -70,7 +70,7 @@ public:
     byte navRotRangeRoll = 0;
 
     // PID settings
-    float pidScale = 4.0;
+    float pidScale = 1.0;
     // Yaw
     float Kp_yaw = 0.0;
     float Ki_yaw = 0.0;
@@ -85,13 +85,9 @@ public:
     float Kd_roll = 0.0;
     
     bool live = true;
-    short yaw;
-    short pitch;
-    short roll;
+    short yaw, pitch, roll;
     unsigned short throttle = 0;
-    float yawf;
-    float pitchf;
-    float rollf;
+    float yawf, pitchf, rollf;
 
     void pack(byte *b){
         b[0] = control_code;

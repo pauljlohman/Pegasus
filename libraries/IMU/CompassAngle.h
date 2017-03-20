@@ -5,6 +5,7 @@
     X axis runs left to right
     z axis runs bottom to top 
     
+    
     (YAW)
         positive value moves the nose right
 
@@ -20,6 +21,7 @@ class CompassAngle{
     float Xoffset, Yoffset, Zoffset;
     float Xscale, Yscale, Zscale;
     float yawOffset = 0.0;
+    float raw_yaw = 0.0;
     
     void vectorReject(float ax, float ay, float az, float bx, float by, float bz, float &_x, float &_y, float &_z){
         // project vector a onto plane b
@@ -74,8 +76,8 @@ public:
         Yscale = ys;
         Zscale = zs;
     };
-    void init(float offset){
-        yawOffset = offset;
+    void zero(){
+        yawOffset = raw_yaw;
     };
     
     void update(short _x, short _y, short _z, short ux, short uy, short uz){
@@ -99,6 +101,7 @@ public:
         vectorReject(mx, my, mz, upX, upY, upZ, rx, ry, rz);
         yaw = atan2f(rx, ry) * radToDegree;
         yaw = yaw * -1; //invert output to get clockwise behavior, complies with common flight scheme
+        raw_yaw = yaw;
         yaw = wrapAngle(yaw - yawOffset);
         
     };

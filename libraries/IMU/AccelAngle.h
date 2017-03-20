@@ -36,26 +36,12 @@
 #include "math.h"
 
 class AccelAngle{
-    float radToDegree = 180.0 / 3.1415926535897932384626433832795;
+    float radToDegree = 57.295779513082320876798154814105;// 180 / PI
+    float degreeToRad = 0.01745329251994329576923690768489;// PI / 180
     // invert output angle
     bool invX, invY, invZ; 
-
-
-
-
-
-
-
-
-
-
-
-
      // resting position
     float Xoffset, Yoffset, Zoffset;
-
-
-
     
     float vecLength(float &_x, float &_y, float &_z){
         return sqrt(_x*_x + _y*_y + _z*_z);
@@ -78,14 +64,10 @@ public:
         invY = _y;
         invZ = _z;
     };
-
     void setRestingPosition(float _x, float _y, float _z){
         Xoffset = _x;
         Yoffset = _y;
         Zoffset = _z;
-
-
-
     };
     
     void update(short _x, short _y, short _z){
@@ -103,8 +85,6 @@ public:
         y = atan2f(-xf, sqrt(yf*yf + zf*zf)) * radToDegree;
 
         // yaw position calculated in compass
-
-
         z = 0.0;
         
         // attempt to provide range past 90, mostly good till close to 180 in either axis

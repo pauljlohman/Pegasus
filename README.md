@@ -1,4 +1,4 @@
-Flight controller and remote control for custom drone. 
+Work in progress flight controller and remote control for a quadcopter. 
 
 Developed using Arduino IDE.
 

@@ -51,54 +51,52 @@ public:
     byte control_code = 0;
     static const byte KILL_CODE = 182;          // 1011,0110
     static const byte NAV_CODE = 15;            // 0000,1111
-    static const byte NAV_ROT_MODE_CODE = 237;  // 1110,1101
-    static const byte NAV_ROT_RANGE_CODE = 222; // 1101,1110
     static const byte PID_YAW_CODE = 218;       // 1101,1010
     static const byte PID_PITCH_CODE = 165;     // 1010,0101
     static const byte PID_ROLL_CODE = 92;       // 0101,1100
 
-    // Nav Rotation Mode; 0=absolute, 1=acrobatic, etc
-    static const byte FLY_STAB = 0;
-    static const byte FLY_ACRO = 1;
-    byte navRotModeYaw = FLY_ACRO;
-    byte navRotModePitch = FLY_STAB;
-    byte navRotModeRoll = FLY_STAB;
-
-    // Nav Rotation Range - joystick
-    byte navRotRangeYaw = 0;
-    byte navRotRangePitch = 0;
-    byte navRotRangeRoll = 0;
-
+    // Nav Mode; 0=absolute(stable), 1=relative(acro), etc
+    static const byte FLY_ABS = 0;
+    static const byte FLY_REL = 1;
+    byte navModeYaw = FLY_REL;
+    byte navModePitch = FLY_ABS;
+    byte navModeRoll = FLY_ABS;
+    byte navModeThrottle = FLY_ABS;
+    
+    // Nav Range
+    byte navRangeYaw = 0;
+    byte navRangePitch = 0;
+    byte navRangeRoll = 0;
+    unsigned short navRangeThrottle = 0;
+    
     // PID settings
-    float pidScale = 1.0;
     // Yaw
-    float Kp_yaw = 0.0;
-    float Ki_yaw = 0.0;
-    float Kd_yaw = 0.0;
+    short Kp_yaw = 0;
+    short Ki_yaw = 0;
+    short Kd_yaw = 0;
     // Pitch
-    float Kp_pitch = 0.0;
-    float Ki_pitch = 0.0;
-    float Kd_pitch = 0.0;
+    short Kp_pitch = 0;
+    short Ki_pitch = 0;
+    short Kd_pitch = 0;
     // Roll
-    float Kp_roll = 0.0;
-    float Ki_roll = 0.0;
-    float Kd_roll = 0.0;
+    short Kp_roll = 0;
+    short Ki_roll = 0;
+    short Kd_roll = 0;
     
     bool live = true;
-    short yaw, pitch, roll;
-    unsigned short throttle = 0;
-    float yawf, pitchf, rollf;
+    short buf[4];
+    float yawf, pitchf, rollf, throttlef;
 
     void pack(byte *b){
         b[0] = control_code;
-        b[1] = byte(yaw >> 8);
-        b[2] = byte(yaw);
-        b[3] = byte(pitch >> 8);
-        b[4] = byte(pitch);
-        b[5] = byte(roll >> 8);
-        b[6] = byte(roll);
-        b[7] = byte(throttle >> 8);
-        b[8] = byte(throttle);
+        b[1] = byte(buf[0] >> 8);
+        b[2] = byte(buf[0]);
+        b[3] = byte(buf[1] >> 8);
+        b[4] = byte(buf[1]);
+        b[5] = byte(buf[2] >> 8);
+        b[6] = byte(buf[2]);
+        b[7] = byte(buf[3] >> 8);
+        b[8] = byte(buf[3]);
     };
 
     void unpack(byte *b){
@@ -109,38 +107,25 @@ public:
                 break;
             case NAV_CODE: // control packet
                 live = true;
-                // -32767 / (65535/1=65535) = -0.5
-                // -32767 / (65535/50=1310.7) = -25
-                // -32767 / (65535/180=364.083) = -90
-                yawf   = getShort(b[1], b[2]) / (65535.0 / navRotRangeYaw);
-                pitchf = getShort(b[3], b[4]) / (65535.0 / navRotRangePitch);
-                rollf  = getShort(b[5], b[6]) / (65535.0 / navRotRangeRoll);
-                throttle = getShort(b[7], b[8]);
-                break;
-            case NAV_ROT_MODE_CODE: // navigation rotation mode; stable or rate
-                navRotModeYaw   = b[2];
-                navRotModePitch = b[4];
-                navRotModeRoll  = b[6];
-                break;
-            case NAV_ROT_RANGE_CODE: // navigation rotation range
-                navRotRangeYaw   = b[2];
-                navRotRangePitch = b[4];
-                navRotRangeRoll  = b[6];
+                yawf      = getShort(b[1], b[2]) / 100.0;
+                pitchf    = getShort(b[3], b[4]) / 100.0;
+                rollf     = getShort(b[5], b[6]) / 100.0;
+                throttlef = (unsigned short)(getShort(b[7], b[8])) / 1.0;
                 break;
             case PID_YAW_CODE: // PID settings for yaw mode
-                Kp_yaw = getShort(b[1], b[2]) / pidScale;
-                Ki_yaw = getShort(b[3], b[4]) / pidScale;
-                Kd_yaw = getShort(b[5], b[6]) / pidScale;
+                Kp_yaw = getShort(b[1], b[2]);
+                Ki_yaw = getShort(b[3], b[4]);
+                Kd_yaw = getShort(b[5], b[6]);
                 break;
             case PID_PITCH_CODE: // PID settings for pitch mode
-                Kp_pitch = getShort(b[1], b[2]) / pidScale;
-                Ki_pitch = getShort(b[3], b[4]) / pidScale;
-                Kd_pitch = getShort(b[5], b[6]) / pidScale;
+                Kp_pitch = getShort(b[1], b[2]);
+                Ki_pitch = getShort(b[3], b[4]);
+                Kd_pitch = getShort(b[5], b[6]);
                 break;
             case PID_ROLL_CODE: // PID settings for roll mode
-                Kp_roll = getShort(b[1], b[2]) / pidScale;
-                Ki_roll = getShort(b[3], b[4]) / pidScale;
-                Kd_roll = getShort(b[5], b[6]) / pidScale;
+                Kp_roll = getShort(b[1], b[2]);
+                Ki_roll = getShort(b[3], b[4]);
+                Kd_roll = getShort(b[5], b[6]);
                 break;
         }
     };

@@ -1716,21 +1716,10 @@ bool MPU9255::getIntDataReadyStatus() {
  * @see MPU9255_RA_ACCEL_XOUT_H
  */
 void MPU9255::getMotion9(int16_t* ax, int16_t* ay, int16_t* az, int16_t* gx, int16_t* gy, int16_t* gz, int16_t* mx, int16_t* my, int16_t* mz) {
-
     //get accel and gyro
     getMotion6(ax, ay, az, gx, gy, gz);
-    getMagReading(mx, my, mz);
-    /*
     //read mag
-    I2Cdev::writeByte(devAddr, MPU9255_RA_INT_PIN_CFG, 0x02); //set i2c bypass enable pin to true to access magnetometer
-    delay(10);
-    I2Cdev::writeByte(AK8963C_ADDRESS, AK8963C_CNTL1, AK8963C_OPMODE_SINGLE); //enable the magnetometer
-    delay(10);
-    I2Cdev::readBytes(AK8963C_ADDRESS, AK8963C_HXL, 6, buffer);
-    *mx = (((int16_t)buffer[0]) << 8) | buffer[1];
-    *my = (((int16_t)buffer[2]) << 8) | buffer[3];
-    *mz = (((int16_t)buffer[4]) << 8) | buffer[5];
-    */
+    while(!getMagReading(mx, my, mz)){}
 }
 /** Get raw 6-axis motion sensor readings (accel/gyro).
  * Retrieves all currently available motion sensor values.
@@ -3121,6 +3110,7 @@ bool MPU9255::writeMemoryBlock(const uint8_t *data, uint16_t dataSize, uint8_t b
     uint8_t j;
     if (verify) verifyBuffer = (uint8_t *)malloc(MPU9255_DMP_MEMORY_CHUNK_SIZE);
     if (useProgMem) progBuffer = (uint8_t *)malloc(MPU9255_DMP_MEMORY_CHUNK_SIZE);
+    else progBuffer = NULL;
     for (i = 0; i < dataSize;) {
         // determine correct chunk size according to bank position and data size
         chunkSize = MPU9255_DMP_MEMORY_CHUNK_SIZE;
@@ -3195,6 +3185,8 @@ bool MPU9255::writeDMPConfigurationSet(const uint8_t *data, uint16_t dataSize, b
     uint16_t i, j;
     if (useProgMem) {
         progBuffer = (uint8_t *)malloc(8); // assume 8-byte blocks, realloc later if necessary
+    } else {
+        progBuffer = NULL;
     }
 
     // config set data is a long string of blocks with the following structure:

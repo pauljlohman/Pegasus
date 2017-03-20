@@ -169,7 +169,7 @@ void setup() {
     //                  ulong deltaTime_UnitsPerSecond,
     //                  float correction_weight
     //                  bool invX, invY, invZ)
-    gyro.config(2000, 1000000, 0.01, false, true, true);
+    gyro.config(2000, 1000000, 0.005, false, true, true);
     accel.config(false, true, false);//args are for inverting axis
     compass.config(152.0, 197.5, -172.5, 1.076132, 1.039761, 1.0); // see compass_calibrate()
   
@@ -237,28 +237,23 @@ void loop() {
     lastShortTime = micros();
     lastShortTimeMS = millis();
     imu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
-    bool updatedMag = imu.getMagReading( &mx, &my, &mz);
+    bool freshMag = imu.getMagReading( &mx, &my, &mz);
     gyro.update(gx, gy, gz, elapsed_si);
-
-
     accel.update(ax, ay, az);
-
     gyro.correctXY(accel.x, accel.y);
-
-    if(updatedMag){ 
-        compass.update(mx, my, mz, ax, ay, az);
-
-        //gyro.correctZ(compass.yaw); 
-        gyro.correctZ(0.0);
-    }    
-
-
+    if(freshMag){
+        compass.update(mx, my, mz, ax, ay, az); 
+    }
+    gyro.correctZ(compass.yaw); 
     
     if (ctrl.live) {
         pid_update();
         motor_update();
     }else{
         motor_off();
+        // zero out yaw
+        gyro.zeroZ();
+        compass.zero();
     }
   }
 
@@ -273,7 +268,7 @@ void loop() {
         logger.writeOnFull();        
     }*/
     print("IMU "); print(lastShortTimeMS); print(" "); print(gyro.posX); print(" "); print(gyro.posY); print(" "); print(gyro.posZ); print("\n");
-    print("GRATE "); print(lastShortTimeMS); print(" "); print(gyro.rateX); print(" "); print(gyro.rateY); print(" "); print(gyro.rateZ); print("\n");
+    //print("GRATE "); print(lastShortTimeMS); print(" "); print(gyro.rateX); print(" "); print(gyro.rateY); print(" "); print(gyro.rateZ); print("\n");
     print("GRSUM "); print(lastShortTimeMS); print(" "); print(gyro.rsumX); print(" "); print(gyro.rsumY); print(" "); print(gyro.rsumZ); print("\n");
     print("ACC "); print(lastShortTimeMS); print(" "); print(accel.x); print(" "); print(accel.y); print(" "); print(compass.yaw); print("\n");
     //print("MAG "); print(lastShortTimeMS); print(" ");print(compass.mx); print(" "); print(compass.my); print(" "); print(compass.mz); print("\n");
@@ -297,24 +292,18 @@ bool rx_check() {
         //print("Kill\n");
         return true;
       case ctrl.NAV_CODE: // navigation control packet
-        print("Nav "); print(lastMidTime); print(" "); print(ctrl.rollf); print(" "); print(ctrl.pitchf); print(" "); print(ctrl.yawf); print(" "); print(ctrl.throttle); print("\n");
-        return true;
-      case ctrl.NAV_ROT_MODE_CODE: // navigation rotation mode; Stable, Acrobatic
-        print("Nav_Rot_Mode "); print(ctrl.navRotModeRoll); print(" "); print(ctrl.navRotModePitch); print(" "); print(ctrl.navRotModeYaw); print("\n");
-        return true;
-      case ctrl.NAV_ROT_RANGE_CODE: // navigation rotation range
-        print("Nav_Rot_Range "); print(ctrl.navRotRangeRoll); print(" "); print(ctrl.navRotRangePitch); print(" "); print(ctrl.navRotRangeYaw); print("\n");
+        print("Nav "); print(lastMidTime); print(" "); print(ctrl.rollf); print(" "); print(ctrl.pitchf); print(" "); print(ctrl.yawf); print(" "); print(ctrl.throttlef); print("\n");
         return true;
       case ctrl.PID_YAW_CODE: // PID Yaw settings
-        print("Pid_Yaw_Settings "); print(ctrl.Kp_yaw); print(" "); print(ctrl.Ki_yaw); print(" "); print(ctrl.Kd_yaw); print("\n");
+        print("Pid_Yaw "); print(ctrl.Kp_yaw); print(" "); print(ctrl.Ki_yaw); print(" "); print(ctrl.Kd_yaw); print("\n");
         pid_config();
         return true;
       case ctrl.PID_PITCH_CODE: // PID Pitch settings
-        print("Pid_Pitch_Settings "); print(ctrl.Kp_pitch); print(" "); print(ctrl.Ki_pitch); print(" "); print(ctrl.Kd_pitch); print("\n");
+        print("Pid_Pitch "); print(ctrl.Kp_pitch); print(" "); print(ctrl.Ki_pitch); print(" "); print(ctrl.Kd_pitch); print("\n");
         pid_config();
         return true;
       case ctrl.PID_ROLL_CODE: // PID Roll settings
-        print("Pid_Roll_Settings "); print(ctrl.Kp_roll); print(" "); print(ctrl.Ki_roll); print(" "); print(ctrl.Kd_roll); print("\n");
+        print("Pid_Roll "); print(ctrl.Kp_roll); print(" "); print(ctrl.Ki_roll); print(" "); print(ctrl.Kd_roll); print("\n");
         pid_config();
         return true;
       default: // unknown control code
@@ -337,7 +326,7 @@ void rx_watchdog() {
     ctrl.yawf = 0.0;
     ctrl.pitchf = 0.0;
     ctrl.rollf = 0.0;
-    ctrl.throttle = 0.0;
+    ctrl.throttlef = 0.0;
     connectionLostCount++;
     digitalWrite(statPin_g, LOW);
     digitalWrite(statPin_r, HIGH);
@@ -357,48 +346,24 @@ void rx_watchdog() {
 void pid_update() {
   // update PID & scale to power
   //print("PID_R "); print(lastShortTimeMS); print(" "); print(ctrl.rollf); print(" ");
-  switch (ctrl.navRotModeRoll) {
-    case ctrl.FLY_STAB:
-      op_roll = long(PID_roll.compute( ctrl.rollf, gyro.posX));
-      //print(gyro.posX); print(" ");
-      break;
-    case ctrl.FLY_ACRO:
-      op_roll = long(PID_roll.compute( ctrl.rollf, gyro.rateX));
-      //print(gyro.rateX); print(" ");
-      break;
-  }
+  op_roll = long(PID_roll.compute( ctrl.rollf, gyro.posX));
+  //print(gyro.posX); print(" ");
   //print(PID_roll.getError()); print(" "); print(ctrl.Kp_roll); print(" "); print(ctrl.Kp_roll * PID_roll.getError()); print(" ")
   //print(PID_roll.getIntegral()); print(" "); print(ctrl.Ki_roll); print(" "); print(ctrl.Ki_roll * PID_roll.getIntegral()); print(" ")
   //print(PID_roll.getDerivative()); print(" "); print(ctrl.Kd_roll); print(" "); print(ctrl.Kd_roll * PID_roll.getDerivative()); print(" ")
   //print(op_roll); print("\n");
 
   //print("PID_P "); print(lastShortTimeMS); print(" "); print(ctrl.pitchf); print(" ");
-  switch (ctrl.navRotModePitch) {
-    case ctrl.FLY_STAB:
-      op_pitch = long(PID_pitch.compute( ctrl.pitchf, gyro.posY));
-      //print(gyro.posY); print(" ");
-      break;
-    case ctrl.FLY_ACRO:
-      op_pitch = long(PID_pitch.compute( ctrl.pitchf, gyro.rateY));
-      //print(gyro.rateY); print(" ");
-      break;
-  }
+  op_pitch = long(PID_pitch.compute( ctrl.pitchf, gyro.posY));
+  //print(gyro.posY); print(" ");
   //print(PID_pitch.getError()); print(" "); print(ctrl.Kp_pitch); print(" "); print(ctrl.Kp_pitch * PID_pitch.getError()); print(" ")
   //print(PID_pitch.getIntegral()); print(" "); print(ctrl.Ki_pitch); print(" "); print(ctrl.Ki_pitch * PID_pitch.getIntegral()); print(" ")
   //print(PID_pitch.getDerivative()); print(" "); print(ctrl.Kd_pitch); print(" "); print(ctrl.Kd_pitch * PID_pitch.getDerivative()); print(" ")
   //print(op_pitch); print("\n");
 
   //print("PID_Y "); print(lastShortTimeMS); print(" "); print(ctrl.yawf); print(" ");
-  switch (ctrl.navRotModeYaw) {
-    case ctrl.FLY_STAB: // use angle position for "stable" mode
-      op_yaw = long(PID_yaw.compute( ctrl.yawf, gyro.posZ));
-      //print(gyro.posZ); print(" ");
-      break;
-    case ctrl.FLY_ACRO: // use angle rate for "acrobatic" mode
-      op_yaw = long(PID_yaw.compute( ctrl.yawf, gyro.rateZ));
-      //print(gyro.rateZ); print(" ");
-      break;
-  }
+  op_yaw = long(PID_yaw.compute( ctrl.yawf, gyro.posZ));
+  //print(gyro.posZ); print(" ");
   //print(PID_yaw.getError()); print(" "); print(ctrl.Kp_yaw); print(" "); print(ctrl.Kp_yaw * PID_yaw.getError()); print(" ")
   //print(PID_yaw.getIntegral()); print(" "); print(ctrl.Ki_yaw); print(" "); print(ctrl.Ki_yaw * PID_yaw.getIntegral()); print(" ")
   //print(PID_yaw.getDerivative()); print(" "); print(ctrl.Kd_yaw); print(" "); print(ctrl.Kd_yaw * PID_yaw.getDerivative()); print(" ")
@@ -418,7 +383,7 @@ void motor_update() {
   // |  yaw  | pitch
   // bl-----br
 
-  op_throttle = ctrl.throttle;
+  op_throttle = int(ctrl.throttlef);
   power_FL = op_throttle + op_pitch + op_roll - op_yaw;
   power_FR = op_throttle + op_pitch - op_roll + op_yaw;
   power_BR = op_throttle - op_pitch - op_roll - op_yaw;
@@ -498,7 +463,7 @@ void imu_calibrate() {
   }while(!stable);
   
   compass.update(int(mx_avg), int(my_avg), int(mz_avg), int(ax_avg), int(ay_avg), int(az_avg));
-  compass.init(compass.yaw);
+  compass.zero();
   accel.setRestingPosition(0.0, 0.0, 1.0);
   //accel.setRestingPosition(int(ax_avg), int(ay_avg), int(az_avg)); // only use if craft is perfectly level
   accel.update(int(ax_avg), int(ay_avg), int(az_avg));

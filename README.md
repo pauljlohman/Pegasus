@@ -1,6 +1,6 @@
 Work in progress flight controller and remote control for a quadcopter. 
 
-Developed using Arduino IDE.
+Deployed using Arduino IDE.
 
 Dev blog: http://technicalartlead.blogspot.com/2016/03/ma-drone.html 
 

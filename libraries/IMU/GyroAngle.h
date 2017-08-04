@@ -22,7 +22,7 @@
 
 #ifndef GYROANGLE_H
 #define GYROANGLE_H
-#define DEBUG
+
 class GyroAngle{
     float radToDegree = 57.295779513082320876798154814105;// 180 / PI
     float degreeToRad = 0.01745329251994329576923690768489;// PI / 180
@@ -67,17 +67,16 @@ public:
     float rateX, rateY, rateZ;
     // integrated angle rate and corrected using accelerometer
     float posX, posY, posZ;
-    #ifdef DEBUG
-        // integrated angle rate
-        float rsumX, rsumY, rsumZ;
-    #endif
+    // integrated angle rate
+    float rsumX, rsumY, rsumZ;
+
     void config(unsigned short FullScaleRangeDPS,
-                unsigned long deltaTime_UnitsPerSecond,
+                unsigned long deltaTime,
                 float correction_weight,
                 bool ix, bool iy, bool iz
                 )
     {
-        dpu = (1.0 / (FullScaleRangeDPS / 32768.0)) * deltaTime_UnitsPerSecond;
+        dpu = (1.0 / (FullScaleRangeDPS / 32768.0)) * deltaTime;
         correctionWeight = constrain(correction_weight, 0.0, 1.0);
         gyroWeight = 1.0 - correctionWeight;
         invX = ix;
@@ -102,15 +101,13 @@ public:
         rateX = (x - offsetX) / deltaDPU;
         rateY = (y - offsetY) / deltaDPU;
         rateZ = (z - offsetZ) / deltaDPU;
-        #ifdef DEBUG
-            // sum angle using rate only
-            rsumX += rateX;
-            rsumY += rateY;
-            rsumZ += rateZ;
-            rsumX = wrapAngle(rsumX);
-            rsumY = wrapAngle(rsumY);
-            rsumZ = wrapAngle(rsumZ);
-        #endif
+        // sum angle using rate only
+        rsumX += rateX;
+        rsumY += rateY;
+        rsumZ += rateZ;
+        rsumX = wrapAngle(rsumX);
+        rsumY = wrapAngle(rsumY);
+        rsumZ = wrapAngle(rsumZ);
         posX += rateX;
         posY += rateY;
         posZ += rateZ;
@@ -143,10 +140,8 @@ public:
     };
     
     void zeroZ(){
-            posZ = 0.0;
-        #ifdef DEBUG
-            rsumZ = 0.0;
-        #endif
+        posZ = 0.0;
+        rsumZ = 0.0;
     };
 };
 

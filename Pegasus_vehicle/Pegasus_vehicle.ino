@@ -17,8 +17,8 @@
 #include "pPID.h"
 #include "CurveRemap.h"
 
-//#define DEBUG
-#ifdef DEBUG
+#define DEBUG false
+#if DEBUG
 #define Serial_begin(x) Serial.begin(x);
 #define print(x) Serial.print(x);
 #else
@@ -67,22 +67,23 @@ long op_roll, op_pitch, op_yaw, op_throttle;
 // motor power output
 long power_FL, power_FR, power_BR, power_BL;
 
-// throttle-thrust correction
+// linear throttle-thrust correction
 CurveRemap tt;
-
+/* // unchanged set
 #define FLTTLENGTH 2
 unsigned short FL_tt_x[FLTTLENGTH] = {0,65535};
-unsigned short FL_tt_y[FLTTLENGTH] = {3195,65535};
+unsigned short FL_tt_y[FLTTLENGTH] = {0,65535};
 #define FRTTLENGTH 2
 unsigned short FR_tt_x[FRTTLENGTH] = {0,65535};
-unsigned short FR_tt_y[FRTTLENGTH] = {3195,65535};
+unsigned short FR_tt_y[FRTTLENGTH] = {0,65535};
 #define BRTTLENGTH 2
 unsigned short BR_tt_x[BRTTLENGTH] = {0,65535};
-unsigned short BR_tt_y[BRTTLENGTH] = {3195,65535};
+unsigned short BR_tt_y[BRTTLENGTH] = {0,65535};
 #define BLTTLENGTH 2
 unsigned short BL_tt_x[BLTTLENGTH] = {0,65535};
-unsigned short BL_tt_y[BLTTLENGTH] = {3195,65535};
-/*
+unsigned short BL_tt_y[BLTTLENGTH] = {0,65535};
+*/
+/* // mapped set
 #define FLTTLENGTH 14
 unsigned short FL_tt_x[FLTTLENGTH] = {0,1843,25384,25465,26711,32691,37411,44993,45244,47404,53389,60687,62966,65535};
 unsigned short FL_tt_y[FLTTLENGTH] = {3359,4022,29892,30626,31276,37814,41815,47131,47705,48586,52278,56283,58021,59281};
@@ -96,20 +97,17 @@ unsigned short BR_tt_y[BRTTLENGTH] = {3277,4077,28358,29310,30467,40393,43836,46
 unsigned short BL_tt_x[BLTTLENGTH] = {0,2558,25426,26377,26494,28842,41066,47144,47512,49400,65535};
 unsigned short BL_tt_y[BLTTLENGTH] = {3195,3894,24949,26229,26919,28269,40086,44674,45374,46146,55350};
 */
+
 // timers
 unsigned long elapsed_ms;
-
 unsigned short longPeriod = 500;
 unsigned long lastLongTime = millis();
-
 byte loggerPeriod = 40;
 unsigned long lastloggerTime = millis();
-
 byte midPeriod = 21;
 unsigned long lastMidTime = millis();
-
 unsigned long elapsed_si;
-unsigned short shortPeriod = 5000; //microseconds(si) 2500=400Hz, 5000=200Hz, 10000=100Hz
+unsigned short shortPeriod = 2500; //microseconds(si) 2500=400Hz, 5000=200Hz, 10000=100Hz
 unsigned long lastShortTime = micros();
 unsigned long lastShortTimeMS = millis();
 
@@ -146,7 +144,8 @@ void setup() {
     esc.init(motorPin_FR);
     esc.init(motorPin_BR);
     esc.init(motorPin_BL);
-    esc_calibrate();
+    //esc_calibrate();
+    motor_off();
     print("ESC Setup Complete\n");
 
     // RX initialize
@@ -166,10 +165,10 @@ void setup() {
     pid_config();
 
     //GyroAngle.config( ushort FullScaleRangeDPS,
-    //                  ulong deltaTime_UnitsPerSecond,
+    //                  ulong deltaTime,
     //                  float correction_weight
     //                  bool invX, invY, invZ)
-    gyro.config(2000, 1000000, 0.005, false, true, true);
+    gyro.config(2000, 1000000, 0.0025, false, true, true); // wtf is deltaTime 1,000,000 here
     accel.config(false, true, false);//args are for inverting axis
     compass.config(152.0, 197.5, -172.5, 1.076132, 1.039761, 1.0); // see compass_calibrate()
   
@@ -177,7 +176,7 @@ void setup() {
     print("IMU Setup...");
     imu.initialize();
     imu.setFullScaleGyroRange(MPU9255_GYRO_FS_2000);//250, 500, 1000, 2000dps
-    imu.setFullScaleAccelRange(MPU9255_ACCEL_FS_4);//2, 4, 8, 16g
+    imu.setFullScaleAccelRange(MPU9255_ACCEL_FS_16);//2, 4, 8, 16g
     imu.magInitialize();
     if (!imu.testConnection()) {
         print("Connection_Failed\n");
@@ -246,12 +245,14 @@ void loop() {
     }
     gyro.correctZ(compass.yaw); 
     
+    pid_update();
     if (ctrl.live) {
-        pid_update();
         motor_update();
     }else{
         motor_off();
-        // zero out yaw
+        PID_yaw.restIntegral();
+        PID_pitch.restIntegral();
+        PID_roll.restIntegral();
         gyro.zeroZ();
         compass.zero();
     }
@@ -263,17 +264,19 @@ void loop() {
     /*if(ctrl.live){
         logger.append_IMU(lastloggerTime, gyro.posX, gyro.posY, gyro.posZ);
         logger.append_PID(lastloggerTime, op_roll, op_pitch, op_yaw);
-        logger.append_MP(lastloggerTime, power_FL, power_FR, power_BR, power_BL);
+        //logger.append_MP(lastloggerTime, power_FL, power_FR, power_BR, power_BL);
         logger.append_RX(lastloggerTime, ctrl.rollf, ctrl.pitchf, ctrl.yawf, ctrl.throttle);
         logger.writeOnFull();        
     }*/
-    print("IMU "); print(lastShortTimeMS); print(" "); print(gyro.posX); print(" "); print(gyro.posY); print(" "); print(gyro.posZ); print("\n");
-    //print("GRATE "); print(lastShortTimeMS); print(" "); print(gyro.rateX); print(" "); print(gyro.rateY); print(" "); print(gyro.rateZ); print("\n");
-    print("GRSUM "); print(lastShortTimeMS); print(" "); print(gyro.rsumX); print(" "); print(gyro.rsumY); print(" "); print(gyro.rsumZ); print("\n");
-    print("ACC "); print(lastShortTimeMS); print(" "); print(accel.x); print(" "); print(accel.y); print(" "); print(compass.yaw); print("\n");
-    //print("MAG "); print(lastShortTimeMS); print(" ");print(compass.mx); print(" "); print(compass.my); print(" "); print(compass.mz); print("\n");
-    print("PID "); print(lastShortTimeMS); print(" "); print(op_roll); print(" "); print(op_pitch); print(" "); print(op_yaw); print("\n");
-    print("MP "); print(lastShortTimeMS); print(" "); print(power_FL); print(" "); print(power_FR); print(" "); print(power_BR); print(" "); print(power_BL); print("\n");
+    #if DEBUG
+        print("IMU "); print(lastShortTimeMS); print(" "); print(gyro.posX); print(" "); print(gyro.posY); print(" "); print(gyro.posZ); print("\n");
+        //print("GRATE "); print(lastShortTimeMS); print(" "); print(gyro.rateX); print(" "); print(gyro.rateY); print(" "); print(gyro.rateZ); print("\n");
+        //print("GRSUM "); print(lastShortTimeMS); print(" "); print(gyro.rsumX); print(" "); print(gyro.rsumY); print(" "); print(gyro.rsumZ); print("\n");
+        //print("ACC "); print(lastShortTimeMS); print(" "); print(accel.x); print(" "); print(accel.y); print(" "); print(compass.yaw); print("\n");
+        //print("MAG "); print(lastShortTimeMS); print(" ");print(compass.mx); print(" "); print(compass.my); print(" "); print(compass.mz); print("\n");
+        print("PID "); print(lastShortTimeMS); print(" "); print(op_roll); print(" "); print(op_pitch); print(" "); print(op_yaw); print("\n");
+        print("MP "); print(lastShortTimeMS); print(" "); print(power_FL); print(" "); print(power_FR); print(" "); print(power_BR); print(" "); print(power_BL); print("\n");
+    #endif
   }
 }
 
@@ -377,26 +380,28 @@ void pid_config() {
   PID_roll.config(shortPeriod, ctrl.Kp_roll, ctrl.Ki_roll, ctrl.Kd_roll, 0.0-float(throttleMax), float(throttleMax));
 }
 
-void motor_update() {  
+void motor_update() {
   //    roll
   // fl-----fr
   // |  yaw  | pitch
   // bl-----br
 
   op_throttle = int(ctrl.throttlef);
+
   power_FL = op_throttle + op_pitch + op_roll - op_yaw;
   power_FR = op_throttle + op_pitch - op_roll + op_yaw;
   power_BR = op_throttle - op_pitch - op_roll - op_yaw;
   power_BL = op_throttle - op_pitch + op_roll + op_yaw;
   /*
+  power_FL = constrain(power_FL, 0, throttleMax);
+  power_FR = constrain(power_FR, 0, throttleMax);
+  power_BR = constrain(power_BR, 0, throttleMax);
+  power_BL = constrain(power_BL, 0, throttleMax);
   power_FL = tt.interp(power_FL, FL_tt_x, FL_tt_y, FLTTLENGTH);
   power_FR = tt.interp(power_FR, FR_tt_x, FR_tt_y, FRTTLENGTH);
   power_BR = tt.interp(power_BR, BR_tt_x, BR_tt_y, BRTTLENGTH);
   power_BL = tt.interp(power_BL, BL_tt_x, BL_tt_y, BLTTLENGTH);
   */
-  
-  //print("MP "); print(lastShortTimeMS); print(" "); print(power_FL); print(" "); print(power_FR); print(" "); print(power_BR); print(" "); print(power_BL); print("\n");
-
   esc.update(motorPin_FL, power_FL);
   esc.update(motorPin_FR, power_FR);
   esc.update(motorPin_BR, power_BR);
@@ -404,6 +409,10 @@ void motor_update() {
 }
 
 void motor_off() {
+    power_FL = 0; 
+    power_FR = 0; 
+    power_BR = 0; 
+    power_BL = 0;
     esc.update(motorPin_FL, 0);
     esc.update(motorPin_FR, 0);
     esc.update(motorPin_BR, 0);
@@ -468,11 +477,11 @@ void imu_calibrate() {
   //accel.setRestingPosition(int(ax_avg), int(ay_avg), int(az_avg)); // only use if craft is perfectly level
   accel.update(int(ax_avg), int(ay_avg), int(az_avg));
   gyro.init(gx_avg, gy_avg, gz_avg, accel.x, accel.y, 0.0); // gyro offset xyz, accel starting rotation xyz
-  #ifdef DEBUG
-    Serial.printf("accel resting vector %0.3f %0.3f %0.3f\n", ax_avg, ay_avg, az_avg);
-    Serial.printf("accel current angle %0.3f %0.3f %0.3f\n", accel.x, accel.y, accel.z);
-    Serial.printf("gyro rate offset %0.3f %0.3f %0.3f\n", gx_avg, gy_avg, gz_avg);
-    Serial.printf("compass resting heading %0.3f\n", compass.yaw);
+  #if DEBUG
+    //Serial.printf("accel resting vector %0.3f %0.3f %0.3f\n", ax_avg, ay_avg, az_avg);
+    //Serial.printf("accel current angle %0.3f %0.3f %0.3f\n", accel.x, accel.y, accel.z);
+    //Serial.printf("gyro rate offset %0.3f %0.3f %0.3f\n", gx_avg, gy_avg, gz_avg);
+    //Serial.printf("compass resting heading %0.3f\n", compass.yaw);
   #endif
   print("IMU Calibration Complete\n");
 }
@@ -510,10 +519,10 @@ void compass_calibrate(){
     Yscale = longCord/(Ymax - Ymin);
     Zscale = longCord/(Zmax - Zmin);
 
-    #ifdef DEBUG
-        Serial.printf("X min %i max %i = offset %0.6f scale %0.6f\n", Xmin, Xmax, Xoffset, Xscale);
-        Serial.printf("Y min %i max %i = offset %0.6f scale %0.6f\n", Ymin, Ymax, Yoffset, Yscale);
-        Serial.printf("Z min %i max %i = offset %0.6f scale %0.6f\n", Zmin, Zmax, Zoffset, Zscale);
+    #if DEBUG
+        //Serial.printf("X min %i max %i = offset %0.6f scale %0.6f\n", Xmin, Xmax, Xoffset, Xscale);
+        //Serial.printf("Y min %i max %i = offset %0.6f scale %0.6f\n", Ymin, Ymax, Yoffset, Yscale);
+        //Serial.printf("Z min %i max %i = offset %0.6f scale %0.6f\n", Zmin, Zmax, Zoffset, Zscale);
     #endif
   }
   compass.config(Xoffset,Yoffset,Zoffset,Xscale,Yscale,Zscale);
@@ -533,8 +542,5 @@ void esc_calibrate() {
     esc.update(motorPin_BR, throttleMax);
     esc.update(motorPin_BL, throttleMax);
     delay(3000);
-    esc.update(motorPin_FL, 0);
-    esc.update(motorPin_FR, 0);
-    esc.update(motorPin_BR, 0);
-    esc.update(motorPin_BL, 0);
+    motor_off();
 }

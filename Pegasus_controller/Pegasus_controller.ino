@@ -3,13 +3,15 @@
 #include "ZETA1.h"
 #include "Pegasus_CtrlData.h"
 #include "Stick.h"
+#include "Pot.h"
+#include "CapacitiveSwitch.h"
 #include "Wire.h"
 #include "Pegasus_ConfigMem.h"
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
-//#define DEBUG
-#ifdef DEBUG
+#define DEBUG false
+#if DEBUG
 #define Serial_begin(x) Serial.begin(x);
 #define print(x) Serial.print(x);
 #else
@@ -29,22 +31,26 @@ Pegasus_CtrlData ctrl;
 Stick stickYaw;
 Stick stickPitch;
 Stick stickRoll;
-Stick stickThrottle;
+Pot stickThrottle;
+Pot stickThrottleTrim;
+byte throttleTrimFrac = 4;//4096
+CapacitiveSwitch operatorSwitch;
 
-byte rollPin = 8;
-byte pitchPin = 7;
-byte yawPin = 6;
-byte throttlePin = 9;
+byte rollPin = 9;//A9
+byte pitchPin = 8;//A8
+byte yawPin = 7;//A7
+byte throttlePin = 2;//A2
+byte throttleTrimPin = 3;//A3
 
 Adafruit_SSD1306 display(6);
 
-byte operatorPin = 17;
+byte operatorPin = 3;
 bool operatorButton_PS = false;
-byte enterPin = 3;
+byte enterPin = 0;
 bool enterButton_PS = false;
-byte upPin = 4;
+byte upPin = 1;
 bool upButton_PS = false;
-byte dnPin = 5;
+byte dnPin = 2;
 bool dnButton_PS = false;
 byte edMode = 0;
 bool edModeEntered = false;
@@ -91,14 +97,11 @@ int32_t edMode_dirty = 0; // flip bit to set dirty
 #define PID_ROLL_I_BIT              19
 #define PID_ROLL_D_BIT              20
 
-short pidGainStep = 1;
-short navRangeStep = 1;
 bool pendingUpdate_pidYaw = false;
 bool pendingUpdate_pidPitch = false;
 bool pendingUpdate_pidRoll = false;
 
 void setup() {
-  pinMode(operatorPin, INPUT);
   pinMode(enterPin, INPUT_PULLUP);
   pinMode(upPin, INPUT_PULLUP);
   pinMode(dnPin, INPUT_PULLUP);
@@ -134,19 +137,25 @@ void setup() {
   }
   print("Complete\n");
 
-  //Stick.config(byte pinX, float outerEdge, float deadZone, float range)
-  stickYaw.config( yawPin, 0.0, 15.0, 2.0);
-  stickPitch.config( pitchPin, 0.0, 15.0, 2.0);
-  stickRoll.config( rollPin, 0.0, 15.0, 2.0);
-  stickThrottle.config( throttlePin, 0.0, 15.0, 2.0);
+  //Stick.config(byte pinX, float outerEdge, float deadZone, float range, invert)
+  stickYaw.config( yawPin, 0.0, 15.0, 2.0, false);
+  stickPitch.config( pitchPin, 0.0, 15.0, 2.0, true);
+  stickRoll.config( rollPin, 0.0, 15.0, 2.0, true);
   stickYaw.calibrate();
   stickPitch.calibrate();
   stickRoll.calibrate();
-  stickThrottle.calibrate();
-  print("stick config complete\n");
+  
+  stickThrottle.config( throttlePin, 1024.0, true);
+  stickThrottleTrim.config( throttleTrimPin, 256.0, true);
+  
+  //CapacitiveSwitch.config(pin, threshold, offset, countRange)
+  operatorSwitch.config(operatorPin, 1650, 100, 200);
+  operatorSwitch.calibrate();
+  
+  print("inputs config complete\n");
 
   loadConfigFromMem();
-    
+
   display.clearDisplay();
   display.println("kk");
   display.display();
@@ -168,11 +177,12 @@ byte scrollPeriod = 100;
 unsigned long lastScrollTime = millis();
 void pollInputs(){
     // check kill switch
-    bool operatorButton = digitalRead(operatorPin);
+    bool operatorButton = operatorSwitch.check(operatorButton_PS);
     bool operatorOnPress = !operatorButton_PS && operatorButton;
     bool operatorOnRelease = operatorButton_PS && !operatorButton;
     operatorButton_PS = operatorButton;
     if(operatorOnPress){ // on key press
+        //Serial.printf("operatorOnPress:%ld\n", temp);
         display.clearDisplay(); display.setCursor(0,0); display.println("Fly"); display.display();
         pendingUpdate_pidYaw = true;
         pendingUpdate_pidPitch = true;
@@ -180,6 +190,7 @@ void pollInputs(){
         resetNav();
     }
     if(operatorOnRelease){ // on key release
+        //Serial.printf("operatorOnRelease:%ld\n", temp);
         display.clearDisplay(); display.setCursor(0,0); display.println("Kill Power"); display.display();
     }
 
@@ -216,7 +227,7 @@ void pollInputs(){
         }
     }else{
         if(enterOnRelease){
-            scrollPeriod = 50;
+            setScrollPeriod();
             edModeEntered = true;
             displayEdModeData(true);
         }
@@ -234,6 +245,37 @@ void pollInputs(){
                 lastScrollTime = millis();
             }
         }
+    }
+}
+
+void setScrollPeriod(){
+    switch (edMode){
+        // Nav Mode
+        case ED_MODE_YAW:
+        case ED_MODE_PITCH:
+        case ED_MODE_ROLL:
+        case ED_MODE_THROTTLE:
+            scrollPeriod = 200; break;
+        // Nav Rotation Range
+        case ED_RANGE_YAW:
+        case ED_RANGE_PITCH:
+        case ED_RANGE_ROLL:
+            scrollPeriod = 200; break;
+        case ED_RANGE_THROTTLE:
+            scrollPeriod = 10; break;
+        // PID Yaw
+        case ED_PID_YAW_P:
+        case ED_PID_YAW_I:
+        case ED_PID_YAW_D:
+        // PID Pitch
+        case ED_PID_PITCH_P:
+        case ED_PID_PITCH_I:
+        case ED_PID_PITCH_D:
+        // PID Roll
+        case ED_PID_ROLL_P:
+        case ED_PID_ROLL_I:
+        case ED_PID_ROLL_D:
+            scrollPeriod = 50; break;
     }
 }
 
@@ -354,7 +396,7 @@ void updateParams(bool up){
                     ctrl.navRangeYaw = mem.read_NavRange_Yaw_Abs();
                     break;
             }
-            stickYaw.setRange( float(ctrl.navRangeYaw));
+            stickYaw.setOutputRange( float(ctrl.navRangeYaw));
             break;
         case ED_MODE_PITCH:
             print("ED_MODE_PITCH\n");
@@ -368,7 +410,7 @@ void updateParams(bool up){
                     ctrl.navRangePitch = mem.read_NavRange_Pitch_Abs();
                     break;
             }
-            stickPitch.setRange( float(ctrl.navRangePitch));
+            stickPitch.setOutputRange( float(ctrl.navRangePitch));
             break;
         case ED_MODE_ROLL:
             print("ED_MODE_ROLL\n");
@@ -382,7 +424,7 @@ void updateParams(bool up){
                     ctrl.navRangeRoll = mem.read_NavRange_Roll_Abs();
                     break;
             }
-            stickRoll.setRange( float(ctrl.navRangeRoll));
+            stickRoll.setOutputRange( float(ctrl.navRangeRoll));
             break;
         case ED_MODE_THROTTLE:
             print("ED_MODE_THROTTLE\n");
@@ -396,14 +438,15 @@ void updateParams(bool up){
                     ctrl.navRangeThrottle = mem.read_NavRange_Throttle_Abs();
                     break;
             }
-            stickThrottle.setRange( float(ctrl.navRangeThrottle));
+            stickThrottle.setOutputRange( float(ctrl.navRangeThrottle));
+            stickThrottleTrim.setOutputRange( float(ctrl.navRangeThrottle/throttleTrimFrac));
             break;
             
         // Nav Range
         case ED_RANGE_YAW:
             print("ED_RANGE_YAW\n");
-            ctrl.navRangeYaw += up ? navRangeStep : -navRangeStep;
-            stickYaw.setRange( float(ctrl.navRangeYaw));
+            ctrl.navRangeYaw += up ? 1 : -1;
+            stickYaw.setOutputRange( float(ctrl.navRangeYaw));
             switch(ctrl.navModeYaw){
                 case ctrl.FLY_REL:
                     bitSet(edMode_dirty, NAVRANGE_YAW_REL_BIT);
@@ -415,8 +458,8 @@ void updateParams(bool up){
             break;
         case ED_RANGE_PITCH:
             print("ED_RANGE_PITCH\n");
-            ctrl.navRangePitch += up ? navRangeStep : -navRangeStep;
-            stickPitch.setRange( float(ctrl.navRangePitch));
+            ctrl.navRangePitch += up ? 1 : -1;
+            stickPitch.setOutputRange( float(ctrl.navRangePitch));
             switch(ctrl.navModePitch){
                 case ctrl.FLY_REL:
                     bitSet(edMode_dirty, NAVRANGE_PITCH_REL_BIT);
@@ -428,8 +471,8 @@ void updateParams(bool up){
             break;
         case ED_RANGE_ROLL:
             print("ED_RANGE_ROLL\n");
-            ctrl.navRangeRoll += up ? navRangeStep : -navRangeStep;
-            stickRoll.setRange( float(ctrl.navRangeRoll));
+            ctrl.navRangeRoll += up ? 1 : -1;
+            stickRoll.setOutputRange( float(ctrl.navRangeRoll));
             switch(ctrl.navModeRoll){
                 case ctrl.FLY_REL:
                     bitSet(edMode_dirty, NAVRANGE_ROLL_REL_BIT);
@@ -441,8 +484,9 @@ void updateParams(bool up){
             break;
         case ED_RANGE_THROTTLE:
             print("ED_RANGE_THROTTLE\n");
-            ctrl.navRangeThrottle += up ? navRangeStep : -navRangeStep;
-            stickThrottle.setRange( float(ctrl.navRangeThrottle));
+            ctrl.navRangeThrottle += up ? 64 : -64;
+            stickThrottle.setOutputRange( float(ctrl.navRangeThrottle));
+            stickThrottleTrim.setOutputRange( float(ctrl.navRangeThrottle/throttleTrimFrac));
             switch(ctrl.navModeThrottle){
                 case ctrl.FLY_REL:
                     bitSet(edMode_dirty, NAVRANGE_THROTTLE_REL_BIT);
@@ -456,21 +500,21 @@ void updateParams(bool up){
         // PID Yaw
         case ED_PID_YAW_P:
             print("ED_PID_YAW_P\n");
-            ctrl.Kp_yaw += up ? pidGainStep : -pidGainStep;
+            ctrl.Kp_yaw += up ? 1 : -1;
             ctrl.Kp_yaw = max(min(32767, ctrl.Kp_yaw), 0);
             bitSet(edMode_dirty, PID_YAW_P_BIT);
             pendingUpdate_pidYaw = true;
             break;
         case ED_PID_YAW_I:
             print("ED_PID_YAW_I\n");
-            ctrl.Ki_yaw += up ? pidGainStep : -pidGainStep;
+            ctrl.Ki_yaw += up ? 1 : -1;
             ctrl.Ki_yaw = max(min(32767, ctrl.Ki_yaw), 0);
             bitSet(edMode_dirty, PID_YAW_I_BIT);
             pendingUpdate_pidYaw = true;
             break;
         case ED_PID_YAW_D:
             print("ED_PID_YAW_D\n");
-            ctrl.Kd_yaw += up ? pidGainStep : -pidGainStep;
+            ctrl.Kd_yaw += up ? 1 : -1;
             ctrl.Kd_yaw = max(min(32767, ctrl.Kd_yaw), 0);
             bitSet(edMode_dirty, PID_YAW_D_BIT);
             pendingUpdate_pidYaw = true;
@@ -479,21 +523,21 @@ void updateParams(bool up){
         // PID Pitch
         case ED_PID_PITCH_P:
             print("ED_PID_PITCH_P\n");
-            ctrl.Kp_pitch += up ? pidGainStep : -pidGainStep;
+            ctrl.Kp_pitch += up ? 1 : -1;
             ctrl.Kp_pitch = max(min(32767, ctrl.Kp_pitch), 0);
             bitSet(edMode_dirty, PID_PITCH_P_BIT);
             pendingUpdate_pidPitch = true;
             break;
         case ED_PID_PITCH_I:
             print("ED_PID_PITCH_I\n");
-            ctrl.Ki_pitch += up ? pidGainStep : -pidGainStep;
+            ctrl.Ki_pitch += up ? 1 : -1;
             ctrl.Ki_pitch = max(min(32767, ctrl.Ki_pitch), 0);
             bitSet(edMode_dirty, PID_PITCH_I_BIT);
             pendingUpdate_pidPitch = true;
             break;
         case ED_PID_PITCH_D:
             print("ED_PID_PITCH_D\n");
-            ctrl.Kd_pitch += up ? pidGainStep : -pidGainStep;
+            ctrl.Kd_pitch += up ? 1 : -1;
             ctrl.Kd_pitch = max(min(32767, ctrl.Kd_pitch), 0);
             bitSet(edMode_dirty, PID_PITCH_D_BIT);
             pendingUpdate_pidPitch = true;
@@ -502,21 +546,21 @@ void updateParams(bool up){
         // PID Roll
         case ED_PID_ROLL_P:
             print("ED_PID_ROLL_P\n");
-            ctrl.Kp_roll += up ? pidGainStep : -pidGainStep;
+            ctrl.Kp_roll += up ? 1 : -1;
             ctrl.Kp_roll = max(ctrl.Kp_roll, 0);
             bitSet(edMode_dirty, PID_ROLL_P_BIT);
             pendingUpdate_pidRoll = true;
             break;
         case ED_PID_ROLL_I:
             print("ED_PID_ROLL_I\n");
-            ctrl.Ki_roll += up ? pidGainStep : -pidGainStep;
+            ctrl.Ki_roll += up ? 1 : -1;
             ctrl.Ki_roll = max(ctrl.Ki_roll, 0);
             bitSet(edMode_dirty, PID_ROLL_I_BIT);
             pendingUpdate_pidRoll = true;
             break;
         case ED_PID_ROLL_D:
             print("ED_PID_ROLL_D\n");
-            ctrl.Kd_roll += up ? pidGainStep : -pidGainStep;
+            ctrl.Kd_roll += up ? 1 : -1;
             ctrl.Kd_roll = max(ctrl.Kd_roll, 0);
             bitSet(edMode_dirty, PID_ROLL_D_BIT);
             pendingUpdate_pidRoll = true;
@@ -549,48 +593,53 @@ void sendPendingPacket(){
 
 void sendPacket_Nav() {
   ctrl.control_code = ctrl.NAV_CODE;
-
-
-
-
   stickYaw.update();
   stickPitch.update();
   stickRoll.update();
   stickThrottle.update();
-  //Serial.printf("left x:%f y:%f\t right x:%f y:%f\n", stickYaw.v, stickPitch.v, stickRoll.v, stickThrottle.v);
+  stickThrottleTrim.update();
+  /*
+  print("roll:");print(stickRoll.v);
+  print(", pitch:");print(stickPitch.v);
+  print(", yaw:");print(stickYaw.v);
+  print(", throttle:");print(stickThrottle.v);
+  print(", throttleTrim:");print(stickThrottleTrim.v);
+  print("\n");
+  */
   switch (ctrl.navModeYaw){
     case ctrl.FLY_ABS: 
-        ctrl.yawf = stickYaw.v * -1.0; break;
+        ctrl.yawf = stickYaw.v; break;
     case ctrl.FLY_REL:
-        ctrl.yawf = wrapAngle(ctrl.yawf + (stickYaw.v * -1) ); break;
+        ctrl.yawf = wrapAngle(ctrl.yawf + stickYaw.v ); break;
   }
   ctrl.buf[0] = int(ctrl.yawf * 100.0);
 
   switch (ctrl.navModePitch){
     case ctrl.FLY_ABS: 
-        ctrl.pitchf = stickPitch.v * -1; break;
+        ctrl.pitchf = stickPitch.v; break;
     case ctrl.FLY_REL:
-        ctrl.pitchf = wrapAngle(ctrl.pitchf + (stickPitch.v * -1)); break;
+        ctrl.pitchf = wrapAngle(ctrl.pitchf + stickPitch.v); break;
   }
   ctrl.buf[1] = int(ctrl.pitchf * 100.0);
   
   switch (ctrl.navModeRoll){
     case ctrl.FLY_ABS:
-        ctrl.rollf = stickRoll.v * -1; break;
+        ctrl.rollf = stickRoll.v; break;
     case ctrl.FLY_REL:
-        ctrl.rollf = wrapAngle(ctrl.rollf + (stickRoll.v * -1)); break;
+        ctrl.rollf = wrapAngle(ctrl.rollf + stickRoll.v); break;
   }
   ctrl.buf[2] = int(ctrl.rollf * 100.0);
   
   switch (ctrl.navModeThrottle){
     case ctrl.FLY_ABS: 
-        ctrl.throttlef = max(stickThrottle.v * 2 * -1, 0.0); break;
+        ctrl.throttlef = stickThrottle.v; break;
     case ctrl.FLY_REL:
-        ctrl.throttlef += stickThrottle.v * -1; 
+        ctrl.throttlef += stickThrottle.v; 
         ctrl.throttlef = max(ctrl.throttlef, 0.0);
         ctrl.throttlef = min(ctrl.throttlef, 65535.0);
         break;
   }
+  ctrl.throttlef = mapf(ctrl.throttlef, 0.0, 65535.0, stickThrottleTrim.v, 65535.0);
   ctrl.buf[3] = int(ctrl.throttlef);
   ctrl.pack(buf);
   radio.startTX(buf);
@@ -602,6 +651,7 @@ void sendPacket_Nav() {
   print(ctrl.rollf); print(" ");
   print(ctrl.throttlef); print(" ");
   print(millis()); print("\n");
+  
 }
 void sendPacket_PID_yaw() {
   print("PID_yaw ");
@@ -653,7 +703,7 @@ void loadConfigFromMem(){
         case ctrl.FLY_REL:
             ctrl.navRangeYaw = mem.read_NavRange_Yaw_Rel(); break;
     }
-    stickYaw.setRange( float(ctrl.navRangeYaw));
+    stickYaw.setOutputRange( float(ctrl.navRangeYaw));
     
     switch (ctrl.navModePitch) {
         case ctrl.FLY_ABS:
@@ -661,7 +711,7 @@ void loadConfigFromMem(){
         case ctrl.FLY_REL:
             ctrl.navRangePitch = mem.read_NavRange_Pitch_Rel(); break;
     }
-    stickPitch.setRange( float(ctrl.navRangePitch));
+    stickPitch.setOutputRange( float(ctrl.navRangePitch));
     
     switch (ctrl.navModeRoll) {
         case ctrl.FLY_ABS:
@@ -669,7 +719,7 @@ void loadConfigFromMem(){
         case ctrl.FLY_REL:
             ctrl.navRangeRoll = mem.read_NavRange_Roll_Rel(); break;
     }
-    stickRoll.setRange( float(ctrl.navRangeRoll));
+    stickRoll.setOutputRange( float(ctrl.navRangeRoll));
     
     switch (ctrl.navModeThrottle) {
         case ctrl.FLY_ABS:
@@ -677,7 +727,8 @@ void loadConfigFromMem(){
         case ctrl.FLY_REL:
             ctrl.navRangeThrottle = mem.read_NavRange_Throttle_Rel(); break;
     }
-    stickThrottle.setRange( float(ctrl.navRangeThrottle));
+    stickThrottle.setOutputRange( float(ctrl.navRangeThrottle));
+    stickThrottleTrim.setOutputRange( float(ctrl.navRangeThrottle/throttleTrimFrac));
     
     print("NavRange yaw: "); print(ctrl.navRangeYaw); 
     print(" pitch: "); print(ctrl.navRangePitch); 
@@ -816,3 +867,7 @@ float wrapAngle(float v){
     }
     return v;
 };
+
+float mapf(float value, float low1, float high1, float low2, float high2){
+  return low2 + (value-low1) * (high2-low2) / (high1-low1);
+}

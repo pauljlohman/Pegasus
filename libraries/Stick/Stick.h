@@ -16,6 +16,7 @@ class Stick {
     float outerEdge = 0.0;
     float deadZone = 0.0;
     float range = 512.0;
+    bool flip = false;
     
     float mapf(float x, float in_min, float in_max, float out_min, float out_max){
       return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
@@ -24,15 +25,16 @@ class Stick {
     public:
         float v;
 
-        void config(byte _pin, float _outerEdge, float _deadZone, float _range){
+        void config(byte _pin, float _outerEdge, float _deadZone, float _outputRange, bool _flip){
             pin = _pin;
             outerEdge = _outerEdge;
             deadZone = _deadZone;
-            range = _range;
+            range = _outputRange;
+            flip = _flip;
             avg.config(4);
         };
-        void setRange(float _range){
-            range = _range;
+        void setOutputRange(float _outputRange){
+            range = _outputRange;
         };
         void calibrate(){
             center = 0.0;
@@ -49,7 +51,8 @@ class Stick {
             //Serial.printf("raw %f\n", v, time);
             v = avg.update(v);
             //Serial.printf("damp %f %i\n", v, time);
-
+            v = flip ? 1024.0 - v : v;
+            
             if(v < center-deadZone){
                 v = mapf(v, 0.0+outerEdge, center-deadZone, -range, 0.0);
             }else if(v > center+deadZone){

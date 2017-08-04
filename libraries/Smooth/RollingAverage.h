@@ -6,16 +6,17 @@ float a1 = ra1.update( analogRead(9)-512);
 #ifndef ROLLINGAVERAGE_H
 #define ROLLINGAVERAGE_H
 
+#define MAXBANKSIZE 8
 class RollingAverage{
-    float sample[32] = {0.0};
-    byte bankSize = 32;
+    float sample[MAXBANKSIZE] = {0.0};
+    byte bankSize = MAXBANKSIZE;
     byte sampCount = 0;
     byte index = 0;
     float average;
     public:
         
         void config(byte _bankSize){
-            bankSize = constrain(_bankSize, 1, 32);
+            bankSize = constrain(_bankSize, 1, MAXBANKSIZE);
         };
         
         float update(float value){
